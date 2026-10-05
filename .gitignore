@@ -1,0 +1,11 @@
+node_modules/
+.next/
+.env*
+!.env.example
+*.tsbuildinfo
+backups/
+database/snapshot.json
+database/restore-data.sql
+.vercel/
+database/pglite_db/
+

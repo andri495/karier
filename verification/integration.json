@@ -1,0 +1,23 @@
+{
+  "tested_at": "2026-10-02T08:48:39.437Z",
+  "engine": "PGlite PostgreSQL via pg wire protocol (lokal), Next.js production server",
+  "checks": [
+    "Skema, impor atomik, impor ulang aman, seluruh kolom snapshot terverifikasi",
+    "File SQL restore menghasilkan data yang sama dengan script impor",
+    "Halaman dan API terkunci; login pengurus berhasil",
+    "GET mempertahankan camelCase, 81 baris data dan saldo Rp569.500",
+    "Permintaan dari domain berbeda ditolak",
+    "Tanggal tidak nyata dan setoran periode ganda ditolak",
+    "Pinjaman memakai kas riil, bukan dana diblokir; pengembalian terbatas sisa pinjaman",
+    "Pemindahan dompet, pemasukan dan pembatasan pengeluaran berjalan",
+    "Dua pinjaman bersamaan: satu disimpan, satu ditolak agar dompet tidak negatif",
+    "Pengeluaran tanpa saldo historis ditolak",
+    "UI desktop/HP, empat laporan, pie+batang tanpa piutang dan PDF tanpa error JavaScript",
+    "Ekspor cadangan database berhasil"
+  ],
+  "neon_live_verified": false,
+  "vercel_live_deployed": false,
+  "clean_install_build_passed": true,
+  "node_version": "22.23.3",
+  "unit_tests_passed": 7
+}

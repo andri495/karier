@@ -1,0 +1,18 @@
+{
+  "source_project_id": "appgprj_6ab7c260cc10819186a48fda332fe5ad",
+  "source_commit": "e05d086bffc93da05c9d83f87d0d543fe9780146",
+  "source_version": 14,
+  "counts": {
+    "transfers": 2,
+    "cash_entries": 15,
+    "repayments": 0,
+    "loans": 0,
+    "payments": 25,
+    "residents": 39
+  },
+  "cash": 284500,
+  "DANA": 60000,
+  "other": 225000,
+  "total": 569500,
+  "export_date": "2026-10-02"
+}
