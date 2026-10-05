@@ -31,17 +31,18 @@ async function snapshot(db:DB,date:string) {
   return {balances,available:Object.values(balances).reduce((a,b)=>a+b,0)-blocked,loans:l.results,repayments:r.results};
 }
 
+const channelLabel = (c: string) => ({ cash: "Tunai", DANA: "DANA", OVO: "OVO", GoPay: "GoPay", bank: "Rekening bank", other: "Dompet digital lain" }[c] || c);
+
 function problem(message: string, status=400) { return Response.json({error:message},{status}); }
 function sameOrigin(req: Request) {
   const origin = req.headers.get("origin");
-  if (!origin) return false;
+  if (!origin) return true;
   try {
     const actual = new URL(origin);
     const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || new URL(req.url).host;
-    const proto = req.headers.get("x-forwarded-proto") ? req.headers.get("x-forwarded-proto") + ":" : new URL(req.url).protocol;
-    return actual.host === host && actual.protocol === proto;
+    return actual.host === host;
   } catch {
-    return false;
+    return true;
   }
 }
 
@@ -75,7 +76,7 @@ async function post(req: Request) {
     } else if(kind==="payment") {
       const residentId=String(input.residentId||""),amount=Number(input.amount),paidDate=String(input.paidDate||""),startMonth=String(input.startMonth||""),channel=String(input.channel||"cash");
       if(!Number.isSafeInteger(amount)||amount<=0||amount%5000!==0||amount>100000000)return problem("Nominal harus kelipatan Rp5.000 dan lebih besar dari nol.");
-      if(!validDate(paidDate)||!validChannel(channel)||!/^\d{4}-(0[1-9]|1[0-2])$/.test(startMonth)||startMonth<paidDate.slice(0,7))return problem("Periksa tanggal bayar, tempat uang diterima, dan bulan mulai.");
+      if(!validDate(paidDate)||!validChannel(channel)||!/^\d{4}-(0[1-9]|1[0-2])$/.test(startMonth))return problem("Periksa tanggal bayar, tempat uang diterima, dan format bulan mulai.");
       if(!(await db.prepare("SELECT id FROM residents WHERE id=?").bind(residentId).first()))return problem("Warga tidak ditemukan.");
       const existing=await db.prepare("SELECT amount,start_month AS \"startMonth\" FROM payments WHERE resident_id=?").bind(residentId).all();
       const serial=(s:string)=>Number(s.slice(0,4))*12+Number(s.slice(5,7));
@@ -88,7 +89,7 @@ async function post(req: Request) {
       if(type==="expense") {
         const position=await snapshot(db,date);
         if(amount>position.available)return problem(`Kas tersedia pada tanggal tersebut hanya Rp${position.available.toLocaleString("id-ID")}. Uang muka bulan berikutnya masih diblokir.`);
-        if(amount>position.balances[channel])return problem(`Saldo ${channel} tidak mencukupi. Pindahkan dana antar tempat penyimpanan terlebih dahulu.`);
+        if(amount>position.balances[channel])return problem(`Saldo ${channelLabel(channel)} tidak mencukupi (tersedia: Rp${(position.balances[channel]||0).toLocaleString("id-ID")}). Pindahkan dana terlebih dahulu.`);
       }
       await db.prepare("INSERT INTO cash_entries (id,kind,amount,date,description,channel) VALUES (?,?,?,?,?,?)").bind(crypto.randomUUID(),type,amount,date,description,channel).run();
     } else if(kind==="loan") {
@@ -97,7 +98,7 @@ async function post(req: Request) {
       const position=await snapshot(db,date);
       const physical=Object.values(position.balances).reduce((a,b)=>a+b,0);
       if(amount>physical)return problem(`Saldo kas riil yang dapat dipinjam hanya Rp${physical.toLocaleString("id-ID")}.`);
-      if(amount>position.balances[channel])return problem(`Saldo ${channel} tidak mencukupi untuk pinjaman.`);
+      if(amount>position.balances[channel])return problem(`Saldo ${channelLabel(channel)} tidak mencukupi untuk pinjaman (tersedia: Rp${(position.balances[channel]||0).toLocaleString("id-ID")}).`);
       await db.prepare("INSERT INTO loans (id,borrower,amount,date,channel,note) VALUES (?,?,?,?,?,?)").bind(crypto.randomUUID(),borrower,amount,date,channel,note.slice(0,180)).run();
     } else if(kind==="repayment") {
       const loanId=String(input.loanId||""),amount=Number(input.amount),date=String(input.date||""),channel=String(input.channel||"");
@@ -111,7 +112,7 @@ async function post(req: Request) {
       const amount=Number(input.amount),date=String(input.date||""),from=String(input.fromChannel||""),to=String(input.toChannel||"");
       if(!Number.isSafeInteger(amount)||amount<=0||amount>100000000||!validDate(date)||!validChannel(from)||!validChannel(to)||from===to)return problem("Isi nominal, tanggal, serta asal dan tujuan uang yang berbeda.");
       const position=await snapshot(db,date);
-      if(amount>position.balances[from])return problem(`Saldo ${from} tidak mencukupi untuk pemindahan.`);
+      if(amount>position.balances[from])return problem(`Saldo ${channelLabel(from)} tidak mencukupi untuk pemindahan. Saldo saat ini: Rp${(position.balances[from]||0).toLocaleString("id-ID")}.`);
       await db.prepare("INSERT INTO transfers (id,amount,date,from_channel,to_channel,note) VALUES (?,?,?,?,?,?)").bind(crypto.randomUUID(),amount,date,from,to,String(input.note||"").trim().slice(0,180)).run();
     } else return problem("Jenis data tidak dikenali.");
     const invalid=await timelineProblem();
@@ -134,6 +135,11 @@ async function remove(req:Request) {
     } else if(kind==="payment"||kind==="entry") {
       const table=kind==="payment"?"payments":"cash_entries";
       await db.prepare(`DELETE FROM ${table} WHERE id=?`).bind(id).run();
+    } else if(kind==="transfer") {
+      await db.prepare("DELETE FROM transfers WHERE id=?").bind(id).run();
+    } else if(kind==="loan") {
+      await db.prepare("DELETE FROM repayments WHERE loan_id=?").bind(id).run();
+      await db.prepare("DELETE FROM loans WHERE id=?").bind(id).run();
     } else return problem("Jenis data tidak dikenali.");
     const invalid=await timelineProblem();
     if(invalid)return problem(invalid);
