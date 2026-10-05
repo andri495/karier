@@ -230,3 +230,4 @@ https://node-postgres.com/features/transactions
 Paket ini belum membuat repository GitHub, akun/database Neon, atau deployment
 Vercel pada akun Anda. Source siap diunggah; pengaturan layanan tersebut tetap
 harus dilakukan dengan akun milik Anda.
+# karier
