@@ -4,8 +4,6 @@ node_modules/
 !.env.example
 *.tsbuildinfo
 backups/
-database/snapshot.json
-database/restore-data.sql
 .vercel/
 database/pglite_db/
 

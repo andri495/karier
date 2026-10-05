@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BarChart, Bar, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, Legend } from "recharts";
-import { ArrowLeftRight, BookOpen, CalendarDays, Download, FileText, HandCoins, Home, Menu, Plus, Printer, ReceiptText, Trash2, Users, Wallet, X } from "lucide-react";
+import { ArrowLeftRight, BookOpen, CalendarDays, Download, FileText, HandCoins, Home, LogIn, LogOut, Menu, Plus, Printer, ReceiptText, ShieldCheck, Trash2, Users, Wallet, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -92,6 +92,25 @@ export default function HomePage(){
  const [reportKind,setReportKind]=useState<ReportKind>("ringkas");
  const [dialog,setDialog]=useState<Action|null>(null),[menu,setMenu]=useState(false);
  const [form,setForm]=useState<Record<string,string>>({});
+ const [isAuth,setIsAuth]=useState(false),[showLogin,setShowLogin]=useState(false);
+ const [loginForm,setLoginForm]=useState({username:"",password:""}),[loginError,setLoginError]=useState(""),[loginBusy,setLoginBusy]=useState(false);
+ useEffect(()=>{
+  fetch("/api/auth").then(r=>r.json()).then(d=>{if(d?.authenticated)setIsAuth(true);}).catch(()=>{});
+ },[]);
+ async function doLogin(e:React.FormEvent){
+  e.preventDefault();setLoginBusy(true);setLoginError("");
+  try{
+   const res=await fetch("/api/auth",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(loginForm)});
+   const body=await res.json() as {error?:string;success?:boolean};
+   if(!res.ok)throw new Error(body.error||"Gagal masuk.");
+   setIsAuth(true);setShowLogin(false);setLoginForm({username:"",password:""});void load();
+  }catch(err){setLoginError(err instanceof Error?err.message:"Gagal masuk.");}
+  finally{setLoginBusy(false);}
+ }
+ async function doLogout(){
+  await fetch("/api/auth",{method:"DELETE"}).catch(()=>{});
+  setIsAuth(false);
+ }
  const load=useCallback(async()=>{
   try {const res=await fetch("/api/state",{cache:"no-store"});const body=await res.json() as State & {error?:string};if(!res.ok)throw new Error(body.error||"Gagal memuat data.");setData(body);setError("");}
   catch(e){setError(e instanceof Error?e.message:"Gagal memuat data.");}
@@ -172,7 +191,7 @@ export default function HomePage(){
   </aside>
   {menu&&<button className="mobile-overlay" aria-label="Tutup menu" onClick={()=>setMenu(false)}/>}
   <main className="main">
-   <header className="topbar"><div className="topbar-left"><button className="mobile-menu" aria-label="Buka menu" onClick={()=>setMenu(true)}><Menu size={23}/></button><span>Keuangan RT</span><span className="topbar-separator">/</span><strong>{navigation.find(([key])=>key===tab)?.[1]}</strong></div><div className="period-chip"><CalendarDays size={16}/><span>Data awal dari lampiran</span></div></header>
+   <header className="topbar"><div className="topbar-left"><button className="mobile-menu" aria-label="Buka menu" onClick={()=>setMenu(true)}><Menu size={23}/></button><span>Keuangan RT</span><span className="topbar-separator">/</span><strong>{navigation.find(([key])=>key===tab)?.[1]}</strong></div><div style={{display:'flex',alignItems:'center',gap:'12px'}}><div className="period-chip"><CalendarDays size={16}/><span>Data awal dari lampiran</span></div>{isAuth?(<div style={{display:'flex',alignItems:'center',gap:'8px'}}><span style={{fontSize:'12px',fontWeight:700,color:'#1b513b',background:'#e6f1e5',padding:'4px 10px',borderRadius:'20px',display:'inline-flex',alignItems:'center',gap:'4px'}}><ShieldCheck size={14}/> Pengurus Aktif</span><button onClick={doLogout} className="button subtle" style={{padding:'4px 10px',minHeight:'32px',fontSize:'12px'}}><LogOut size={13}/> Keluar</button></div>):(<button onClick={()=>{setLoginError("");setShowLogin(true)}} className="button subtle" style={{padding:'5px 12px',minHeight:'34px',fontSize:'13px'}}><LogIn size={14}/> Masuk Pengurus</button>)}</div></header>
    <div className="content">
     <div className="heading"><div><p className="eyebrow">PENCATATAN IURAN RT</p><h1>{tab==="ringkasan"?"Ringkasan keuangan":tab==="warga"?"Iuran warga":tab==="kas"?"Buku kas":tab==="pinjaman"?"Pinjaman kas":"Unduh laporan"}</h1><p className="subheading">Posisi akhir bulan berdasarkan transaksi yang tercatat.</p></div><div className="heading-actions"><label className="month-control">Bulan <select aria-label="Pilih bulan laporan" value={month} onChange={e=>setMonth(e.target.value)}>{monthOptions.map(m=><option key={m} value={m}>{monthLabel(m)}</option>)}</select></label>{tab!=="laporan"&&<button className="button primary" onClick={()=>open(tab==="pinjaman"?"loan":"payment")}><Plus size={17}/> {tab==="pinjaman"?"Catat pinjaman":"Catat iuran"}</button>}</div></div>
     {error&&!dialog&&<div role="alert" className="error-bar">{error} <button onClick={()=>void load()}>Coba lagi</button></div>}
@@ -204,6 +223,7 @@ export default function HomePage(){
    {dialog==="transfer"&&<><div className="form-pair"><ChannelInput label="Dari" value={form.fromChannel||"cash"} change={v=>setForm({...form,fromChannel:v})}/><ChannelInput label="Ke" value={form.toChannel||"DANA"} change={v=>setForm({...form,toChannel:v})}/></div><div className="form-pair"><label>Jumlah dipindahkan<input required type="number" min="1" step="1" value={form.amount||""} onChange={e=>setForm({...form,amount:e.target.value})}/></label><label>Tanggal<input required type="date" value={form.date||""} onChange={e=>setForm({...form,date:e.target.value})}/></label></div><label>Catatan (opsional)<input maxLength={180} value={form.note||""} onChange={e=>setForm({...form,note:e.target.value})}/></label><p className="form-help">Pemindahan dana hanya mengubah tempat uang, bukan total kas tersedia.</p></>}
    {error&&<p className="form-error" role="alert">{error}</p>}<button className="button primary form-submit" disabled={busy}>{busy?"Menyimpan…":"Simpan"}</button>
   </form></DialogContent></Dialog>
+  <Dialog open={showLogin} onOpenChange={setShowLogin}><DialogContent className="dialog-content"><DialogHeader><DialogTitle>Masuk Pengurus KARIER</DialogTitle></DialogHeader><form onSubmit={doLogin} className="form-grid"><p className="form-help">Masuk untuk mengelola data warga, mencatat iuran, transaksi kas, dan pinjaman.</p><label>Nama Pengurus (Username)<input required autoFocus value={loginForm.username} onChange={e=>setLoginForm({...loginForm,username:e.target.value})} placeholder="admin"/></label><label>Kata Sandi (Password)<input required type="password" value={loginForm.password} onChange={e=>setLoginForm({...loginForm,password:e.target.value})} placeholder="adminpassword123456"/></label><p style={{fontSize:'12px',color:'#627c67',margin:'-4px 0 6px'}}>Akun bawaan: <b>admin</b> &middot; Sandi: <b>adminpassword123456</b></p>{loginError&&<p className="form-error" role="alert">{loginError}</p>}<button className="button primary form-submit" disabled={loginBusy}>{loginBusy?"Memeriksa…":"Masuk"}</button></form></DialogContent></Dialog>
  </div>;
 }
 

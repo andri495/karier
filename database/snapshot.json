@@ -1,0 +1,568 @@
+{
+  "transfers": [
+    {
+      "id": "673969ba-9feb-42cd-9f53-b3f201a0d21a",
+      "amount": 50000,
+      "date": "2026-10-02",
+      "from_channel": "other",
+      "to_channel": "cash",
+      "note": ""
+    },
+    {
+      "id": "correction-other-wallet-275000-20260930",
+      "amount": 275000,
+      "date": "2026-09-30",
+      "from_channel": "cash",
+      "to_channel": "other",
+      "note": "Penempatan kas pada dompet digital lainnya"
+    }
+  ],
+  "cash_entries": [
+    {
+      "id": "92409ffb-4920-493b-8802-96b8c9e69edf",
+      "kind": "expense",
+      "amount": 17500,
+      "date": "2026-09-30",
+      "description": "Beli Gula Gunung Madu 1Kg (Pos Jaga)",
+      "channel": "cash"
+    },
+    {
+      "id": "95b25191-fa6a-4bee-a242-adef0faa540b",
+      "kind": "expense",
+      "amount": 24000,
+      "date": "2026-10-02",
+      "description": "Beli kopi Badak 400 gr (pos jaga)",
+      "channel": "cash"
+    },
+    {
+      "id": "c4eb7695-e19f-4102-b166-f6c1bcaf8094",
+      "kind": "expense",
+      "amount": 36000,
+      "date": "2026-09-30",
+      "description": "beli kopi BADAK 600 gr",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-a1",
+      "kind": "expense",
+      "amount": 35000,
+      "date": "2026-09-10",
+      "description": "Lampu 30 watt, 1 pcs · pos jaga",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-a2",
+      "kind": "expense",
+      "amount": 45000,
+      "date": "2026-09-10",
+      "description": "Racun rumput, 1 liter · gotong royong",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-a3",
+      "kind": "expense",
+      "amount": 14000,
+      "date": "2026-09-10",
+      "description": "Air minum isi ulang, 2 galon · pos jaga",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-a4",
+      "kind": "expense",
+      "amount": 8000,
+      "date": "2026-09-10",
+      "description": "Kopi, 100 gram · pos jaga",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-a5",
+      "kind": "expense",
+      "amount": 12000,
+      "date": "2026-09-10",
+      "description": "Gula, 500 gram · pos jaga",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-a6",
+      "kind": "expense",
+      "amount": 26000,
+      "date": "2026-09-10",
+      "description": "Kopi, 1 kilogram · pos jaga",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-grant",
+      "kind": "income",
+      "amount": 126000,
+      "date": "2026-09-10",
+      "description": "Hibah",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-opening",
+      "kind": "income",
+      "amount": 14000,
+      "date": "2026-09-10",
+      "description": "Sisa kas bulan lalu",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-s1",
+      "kind": "expense",
+      "amount": 14000,
+      "date": "2026-09-10",
+      "description": "Air minum isi ulang, 2 galon · pos jaga",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-s2",
+      "kind": "expense",
+      "amount": 16000,
+      "date": "2026-09-10",
+      "description": "Gula, 500 gram · pos jaga",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-s3",
+      "kind": "expense",
+      "amount": 2000,
+      "date": "2026-09-10",
+      "description": "Admin penarikan GoPay",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-s4",
+      "kind": "expense",
+      "amount": 31000,
+      "date": "2026-09-10",
+      "description": "Kopi, 1 kilogram · pos jaga",
+      "channel": "cash"
+    }
+  ],
+  "repayments": [],
+  "loans": [],
+  "payments": [
+    {
+      "id": "976a780c-6b7e-48b9-9f59-feaa16618025",
+      "resident_id": "C4",
+      "amount": 20000,
+      "paid_date": "2026-09-15",
+      "start_month": "2026-09",
+      "note": "",
+      "channel": "DANA"
+    },
+    {
+      "id": "seed-B10",
+      "resident_id": "B10",
+      "amount": 30000,
+      "paid_date": "2026-09-10",
+      "start_month": "2026-09",
+      "note": "Saldo awal dari PDF; tanggal tidak dirinci, ditetapkan 10 September 2026",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-B11",
+      "resident_id": "B11",
+      "amount": 25000,
+      "paid_date": "2026-09-10",
+      "start_month": "2026-09",
+      "note": "Saldo awal dari PDF; tanggal tidak dirinci, ditetapkan 10 September 2026",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-B2",
+      "resident_id": "B2",
+      "amount": 20000,
+      "paid_date": "2026-09-10",
+      "start_month": "2026-09",
+      "note": "Saldo awal dari PDF; tanggal tidak dirinci, ditetapkan 10 September 2026",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-B5",
+      "resident_id": "B5",
+      "amount": 20000,
+      "paid_date": "2026-09-10",
+      "start_month": "2026-09",
+      "note": "Saldo awal dari PDF; tanggal tidak dirinci, ditetapkan 10 September 2026",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-B6",
+      "resident_id": "B6",
+      "amount": 20000,
+      "paid_date": "2026-09-10",
+      "start_month": "2026-09",
+      "note": "Saldo awal dari PDF; tanggal tidak dirinci, ditetapkan 10 September 2026",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-C1",
+      "resident_id": "C1",
+      "amount": 10000,
+      "paid_date": "2026-09-10",
+      "start_month": "2026-09",
+      "note": "Saldo awal dari PDF; tanggal tidak dirinci, ditetapkan 10 September 2026",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-C3",
+      "resident_id": "C3",
+      "amount": 10000,
+      "paid_date": "2026-09-10",
+      "start_month": "2026-09",
+      "note": "Saldo awal dari PDF; tanggal tidak dirinci, ditetapkan 10 September 2026",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-C5",
+      "resident_id": "C5",
+      "amount": 10000,
+      "paid_date": "2026-09-10",
+      "start_month": "2026-09",
+      "note": "Saldo awal dari PDF; tanggal tidak dirinci, ditetapkan 10 September 2026",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-D13",
+      "resident_id": "D13",
+      "amount": 40000,
+      "paid_date": "2026-09-10",
+      "start_month": "2026-09",
+      "note": "Saldo awal dari PDF; tanggal tidak dirinci, ditetapkan 10 September 2026",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-D15",
+      "resident_id": "D15",
+      "amount": 20000,
+      "paid_date": "2026-09-10",
+      "start_month": "2026-09",
+      "note": "Saldo awal dari PDF; tanggal tidak dirinci, ditetapkan 10 September 2026",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-D16",
+      "resident_id": "D16",
+      "amount": 40000,
+      "paid_date": "2026-09-10",
+      "start_month": "2026-09",
+      "note": "Saldo awal dari PDF; tanggal tidak dirinci, ditetapkan 10 September 2026",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-D3",
+      "resident_id": "D3",
+      "amount": 25000,
+      "paid_date": "2026-09-10",
+      "start_month": "2026-09",
+      "note": "Saldo awal dari PDF; tanggal tidak dirinci, ditetapkan 10 September 2026",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-D5",
+      "resident_id": "D5",
+      "amount": 40000,
+      "paid_date": "2026-09-11",
+      "start_month": "2026-09",
+      "note": "Imam (D5) setor melalui DANA pada 11 September 2026",
+      "channel": "DANA"
+    },
+    {
+      "id": "seed-D6",
+      "resident_id": "D6",
+      "amount": 20000,
+      "paid_date": "2026-09-10",
+      "start_month": "2026-09",
+      "note": "Saldo awal dari PDF; tanggal tidak dirinci, ditetapkan 10 September 2026",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-D7",
+      "resident_id": "D7",
+      "amount": 20000,
+      "paid_date": "2026-09-10",
+      "start_month": "2026-09",
+      "note": "Saldo awal dari PDF; tanggal tidak dirinci, ditetapkan 10 September 2026",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-E10",
+      "resident_id": "E10",
+      "amount": 20000,
+      "paid_date": "2026-09-10",
+      "start_month": "2026-09",
+      "note": "Saldo awal dari PDF; tanggal tidak dirinci, ditetapkan 10 September 2026",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-E13",
+      "resident_id": "E13",
+      "amount": 50000,
+      "paid_date": "2026-09-10",
+      "start_month": "2026-09",
+      "note": "Saldo awal dari PDF; tanggal tidak dirinci, ditetapkan 10 September 2026",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-E14",
+      "resident_id": "E14",
+      "amount": 100000,
+      "paid_date": "2026-09-10",
+      "start_month": "2026-09",
+      "note": "Saldo awal dari PDF; tanggal tidak dirinci, ditetapkan 10 September 2026",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-E15",
+      "resident_id": "E15",
+      "amount": 20000,
+      "paid_date": "2026-09-10",
+      "start_month": "2026-09",
+      "note": "Saldo awal dari PDF; tanggal tidak dirinci, ditetapkan 10 September 2026",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-E18",
+      "resident_id": "E18",
+      "amount": 20000,
+      "paid_date": "2026-09-10",
+      "start_month": "2026-09",
+      "note": "Saldo awal dari PDF; tanggal tidak dirinci, ditetapkan 10 September 2026",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-E4",
+      "resident_id": "E4",
+      "amount": 10000,
+      "paid_date": "2026-09-10",
+      "start_month": "2026-09",
+      "note": "Saldo awal dari PDF; tanggal tidak dirinci, ditetapkan 10 September 2026",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-E6",
+      "resident_id": "E6",
+      "amount": 10000,
+      "paid_date": "2026-09-10",
+      "start_month": "2026-09",
+      "note": "Saldo awal dari PDF; tanggal tidak dirinci, ditetapkan 10 September 2026",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-E7",
+      "resident_id": "E7",
+      "amount": 50000,
+      "paid_date": "2026-09-10",
+      "start_month": "2026-09",
+      "note": "Saldo awal dari PDF; tanggal tidak dirinci, ditetapkan 10 September 2026",
+      "channel": "cash"
+    },
+    {
+      "id": "seed-E9",
+      "resident_id": "E9",
+      "amount": 60000,
+      "paid_date": "2026-09-10",
+      "start_month": "2026-09",
+      "note": "Saldo awal dari PDF; tanggal tidak dirinci, ditetapkan 10 September 2026",
+      "channel": "cash"
+    }
+  ],
+  "residents": [
+    {
+      "id": "B10",
+      "name": "Ari",
+      "block": "B10"
+    },
+    {
+      "id": "B11",
+      "name": "Deddy",
+      "block": "B11"
+    },
+    {
+      "id": "B2",
+      "name": "Khoirul",
+      "block": "B2"
+    },
+    {
+      "id": "B3",
+      "name": "Yoga",
+      "block": "B3"
+    },
+    {
+      "id": "B4",
+      "name": "Guntur",
+      "block": "B4"
+    },
+    {
+      "id": "B5",
+      "name": "Arham",
+      "block": "B5"
+    },
+    {
+      "id": "B6",
+      "name": "Deva",
+      "block": "B6"
+    },
+    {
+      "id": "B7",
+      "name": "Yuni",
+      "block": "B7"
+    },
+    {
+      "id": "B9",
+      "name": "Yudha",
+      "block": "B9"
+    },
+    {
+      "id": "C1",
+      "name": "Aryo",
+      "block": "C1"
+    },
+    {
+      "id": "C2",
+      "name": "Mita",
+      "block": "C2"
+    },
+    {
+      "id": "C3",
+      "name": "Nelly",
+      "block": "C3"
+    },
+    {
+      "id": "C4",
+      "name": "Haris",
+      "block": "C4"
+    },
+    {
+      "id": "C5",
+      "name": "Dhila",
+      "block": "C5"
+    },
+    {
+      "id": "D10",
+      "name": "Indra",
+      "block": "D10"
+    },
+    {
+      "id": "D11",
+      "name": "Putri",
+      "block": "D11"
+    },
+    {
+      "id": "D12",
+      "name": "Sutisna",
+      "block": "D12"
+    },
+    {
+      "id": "D13",
+      "name": "Bawor",
+      "block": "D13"
+    },
+    {
+      "id": "D14",
+      "name": "Lala",
+      "block": "D14"
+    },
+    {
+      "id": "D15",
+      "name": "Hengky",
+      "block": "D15"
+    },
+    {
+      "id": "D16",
+      "name": "Ricky",
+      "block": "D16"
+    },
+    {
+      "id": "D2",
+      "name": "Ricky",
+      "block": "D2"
+    },
+    {
+      "id": "D3",
+      "name": "Nasam",
+      "block": "D3"
+    },
+    {
+      "id": "D4",
+      "name": "Farhan",
+      "block": "D4"
+    },
+    {
+      "id": "D5",
+      "name": "Imam",
+      "block": "D5"
+    },
+    {
+      "id": "D6",
+      "name": "Euis",
+      "block": "D6"
+    },
+    {
+      "id": "D7",
+      "name": "Angger",
+      "block": "D7"
+    },
+    {
+      "id": "D8",
+      "name": "Taufiq",
+      "block": "D8"
+    },
+    {
+      "id": "D9",
+      "name": "Nur",
+      "block": "D9"
+    },
+    {
+      "id": "E10",
+      "name": "Sintha",
+      "block": "E10"
+    },
+    {
+      "id": "E13",
+      "name": "Nikita",
+      "block": "E13"
+    },
+    {
+      "id": "E14",
+      "name": "Rian",
+      "block": "E14"
+    },
+    {
+      "id": "E15",
+      "name": "Nona",
+      "block": "E15"
+    },
+    {
+      "id": "E18",
+      "name": "Panca",
+      "block": "E18"
+    },
+    {
+      "id": "E2",
+      "name": "Akbar",
+      "block": "E2"
+    },
+    {
+      "id": "E4",
+      "name": "Lutfi",
+      "block": "E4"
+    },
+    {
+      "id": "E6",
+      "name": "Hendri",
+      "block": "E6"
+    },
+    {
+      "id": "E7",
+      "name": "Alex",
+      "block": "E7"
+    },
+    {
+      "id": "E9",
+      "name": "Hendra",
+      "block": "E9"
+    }
+  ]
+}

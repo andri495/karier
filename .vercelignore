@@ -1,5 +1,3 @@
-database/snapshot.json
-database/restore-data.sql
 backups/
 verification/
 .env.local
