@@ -14,7 +14,8 @@
     "db:init": "node --env-file=.env.local scripts/database.mjs init",
     "db:import": "node --env-file=.env.local scripts/database.mjs import",
     "db:verify": "node --env-file=.env.local scripts/database.mjs verify",
-    "db:backup": "node --env-file=.env.local scripts/database.mjs backup"
+    "db:backup": "node --env-file=.env.local scripts/database.mjs backup",
+    "auth:reset": "node --env-file=.env.local scripts/reset-password.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

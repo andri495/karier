@@ -62,6 +62,12 @@ CREATE TABLE IF NOT EXISTS transfers (
 CREATE INDEX IF NOT EXISTS payments_resident_date ON payments(resident_id,paid_date);
 CREATE INDEX IF NOT EXISTS repayments_loan ON repayments(loan_id);
 CREATE INDEX IF NOT EXISTS entries_date ON cash_entries(date);
+CREATE TABLE IF NOT EXISTS admin_auth (
+  username TEXT PRIMARY KEY,
+  password_hash TEXT NOT NULL,
+  salt TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
 `;
 
 const TABLES = ['residents', 'payments', 'cash_entries', 'loans', 'repayments', 'transfers'] as const;

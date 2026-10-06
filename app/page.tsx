@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BarChart, Bar, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, Legend } from "recharts";
-import { ArrowLeftRight, BookOpen, CalendarDays, Download, FileText, HandCoins, Home, Menu, Plus, Printer, ReceiptText, Trash2, Users, Wallet, X } from "lucide-react";
+import { ArrowLeftRight, BookOpen, CalendarDays, Download, FileText, HandCoins, Home, KeyRound, LogIn, LogOut, Menu, Plus, Printer, ReceiptText, ShieldCheck, Trash2, Users, Wallet, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-type Resident = { id: string; name: string; block: string };
+type Resident={ id: string; name: string; block: string };
 type Channel = "cash" | "DANA" | "OVO" | "GoPay" | "bank" | "other";
 type Payment = { id: string; residentId: string; amount: number; paidDate: string; startMonth: string; note: string; channel: Channel };
 type Entry = { id: string; kind: "income" | "expense"; amount: number; date: string; description: string; channel: Channel };
@@ -94,6 +94,177 @@ export default function HomePage() {
   const [dialog, setDialog] = useState<Action | null>(null), [menu, setMenu] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
   const [successMsg, setSuccessMsg] = useState("");
+
+  const [isAuth, setIsAuth] = useState(false);
+  const [currentUser, setCurrentUser] = useState("admin");
+  const [showLogin, setShowLogin] = useState(false);
+  const [loginForm, setLoginForm] = useState({ username: "admin", password: "" });
+  const [loginError, setLoginError] = useState("");
+  const [loginBusy, setLoginBusy] = useState(false);
+
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [changePwForm, setChangePwForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+    newUsername: "admin",
+  });
+  const [changePwError, setChangePwError] = useState("");
+  const [changePwSuccess, setChangePwSuccess] = useState("");
+  const [changePwBusy, setChangePwBusy] = useState(false);
+
+  const [isResetMode, setIsResetMode] = useState(false);
+  const [resetForm, setResetForm] = useState({ resetKey: "", newPassword: "", confirmPassword: "", username: "admin" });
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetError, setResetError] = useState("");
+  const [resetSuccess, setResetSuccess] = useState("");
+
+  useEffect(() => {
+    fetch("/api/auth")
+      .then(r => r.json())
+      .then((d: { authenticated?: boolean; user?: string }) => {
+        if (d?.authenticated) {
+          setIsAuth(true);
+          if (d.user) {
+            setCurrentUser(d.user);
+            setChangePwForm(f => ({ ...f, newUsername: d.user || "admin" }));
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  async function doLogin(e: React.FormEvent) {
+    e.preventDefault();
+    setLoginBusy(true);
+    setLoginError("");
+    try {
+      const res = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(loginForm),
+      });
+      const body = await res.json() as { error?: string; success?: boolean; user?: string };
+      if (!res.ok) throw new Error(body.error || "Gagal masuk.");
+      setIsAuth(true);
+      const u = body.user || loginForm.username || "admin";
+      setCurrentUser(u);
+      setChangePwForm(f => ({ ...f, newUsername: u }));
+      setShowLogin(false);
+      setLoginForm({ username: u, password: "" });
+      setSuccessMsg(`Berhasil masuk sebagai pengurus (${u}).`);
+      setTimeout(() => setSuccessMsg(""), 4000);
+      void load();
+    } catch (err) {
+      setLoginError(err instanceof Error ? err.message : "Gagal masuk.");
+    } finally {
+      setLoginBusy(false);
+    }
+  }
+
+  async function doLogout() {
+    if (!window.confirm("Yakin ingin keluar dari akun pengurus?")) return;
+    try {
+      await fetch("/api/auth", { method: "DELETE" });
+    } catch {}
+    setIsAuth(false);
+    setSuccessMsg("Anda telah keluar dari sesi pengurus.");
+    setTimeout(() => setSuccessMsg(""), 4000);
+  }
+
+  async function doChangePassword(e: React.FormEvent) {
+    e.preventDefault();
+    setChangePwBusy(true);
+    setChangePwError("");
+    setChangePwSuccess("");
+    if (changePwForm.newPassword !== changePwForm.confirmPassword) {
+      setChangePwError("Konfirmasi kata sandi baru tidak cocok.");
+      setChangePwBusy(false);
+      return;
+    }
+    if (changePwForm.newPassword.length < 6) {
+      setChangePwError("Kata sandi baru minimal 6 karakter.");
+      setChangePwBusy(false);
+      return;
+    }
+    try {
+      const res = await fetch("/api/auth", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPassword: changePwForm.currentPassword,
+          newPassword: changePwForm.newPassword,
+          newUsername: changePwForm.newUsername || currentUser,
+        }),
+      });
+      const body = await res.json() as { error?: string; success?: boolean; message?: string; user?: string };
+      if (!res.ok) throw new Error(body.error || "Gagal mengubah kata sandi.");
+      const updatedUser = body.user || changePwForm.newUsername || currentUser;
+      setCurrentUser(updatedUser);
+      setChangePwSuccess("Kata sandi berhasil diperbarui!");
+      setTimeout(() => {
+        setShowChangePassword(false);
+        setChangePwForm({ currentPassword: "", newPassword: "", confirmPassword: "", newUsername: updatedUser });
+        setChangePwSuccess("");
+        setSuccessMsg("Kata sandi pengurus berhasil diubah dan disimpan!");
+        setTimeout(() => setSuccessMsg(""), 4000);
+      }, 1200);
+    } catch (err) {
+      setChangePwError(err instanceof Error ? err.message : "Gagal mengubah kata sandi.");
+    } finally {
+      setChangePwBusy(false);
+    }
+  }
+
+  async function doResetPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setResetBusy(true);
+    setResetError("");
+    setResetSuccess("");
+    if (resetForm.newPassword !== resetForm.confirmPassword) {
+      setResetError("Konfirmasi kata sandi baru tidak cocok.");
+      setResetBusy(false);
+      return;
+    }
+    if (resetForm.newPassword.length < 6) {
+      setResetError("Kata sandi baru minimal 6 karakter.");
+      setResetBusy(false);
+      return;
+    }
+    try {
+      const res = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "reset-password",
+          resetKey: resetForm.resetKey,
+          newPassword: resetForm.newPassword,
+          newUsername: resetForm.username || "admin",
+        }),
+      });
+      const body = (await res.json()) as { error?: string; success?: boolean; message?: string; user?: string };
+      if (!res.ok) throw new Error(body.error || "Gagal mereset kata sandi.");
+      const u = body.user || resetForm.username || "admin";
+      setIsAuth(true);
+      setCurrentUser(u);
+      setChangePwForm(f => ({ ...f, newUsername: u }));
+      setResetSuccess("Kata sandi berhasil direset! Mengalihkan…");
+      setTimeout(() => {
+        setShowLogin(false);
+        setIsResetMode(false);
+        setResetForm({ resetKey: "", newPassword: "", confirmPassword: "", username: "admin" });
+        setResetSuccess("");
+        setSuccessMsg(`Kata sandi berhasil direset dan Anda telah masuk sebagai pengurus (${u})!`);
+        setTimeout(() => setSuccessMsg(""), 4000);
+        void load();
+      }, 1200);
+    } catch (err) {
+      setResetError(err instanceof Error ? err.message : "Gagal mereset kata sandi.");
+    } finally {
+      setResetBusy(false);
+    }
+  }
+
   const load = useCallback(async () => {
     try { const res = await fetch("/api/state", { cache: "no-store" }); const body = await res.json() as State & { error?: string }; if (!res.ok) throw new Error(body.error || "Gagal memuat data."); setData(body); setError(""); }
     catch (e) { setError(e instanceof Error ? e.message : "Gagal memuat data."); }
@@ -114,6 +285,11 @@ export default function HomePage() {
   const monthOptions = Array.from({ length: 113 }, (_, i) => { const y = 2026 + Math.floor((i + 7) / 12), m = (i + 7) % 12 + 1; return `${y}-${String(m).padStart(2, "0")}`; });
   const filtered = data?.residents.filter(w => `${w.name} ${w.block}`.toLowerCase().includes(search.toLowerCase())) ?? [];
   function open(action: Action) {
+    if (!isAuth) {
+      setLoginError("Silakan masuk sebagai pengurus terlebih dahulu untuk menambah atau mengedit data.");
+      setShowLogin(true);
+      return;
+    }
     setError("");
     const defaultDate = month === today().slice(0, 7) ? today() : `${month}-01`;
     const defaultFrom = result && result.balances.cash > 0 ? "cash" : (channels.find(c => (result?.balances[c.id] ?? 0) > 0)?.id || "cash");
@@ -141,30 +317,55 @@ export default function HomePage() {
     catch (e) { setError(e instanceof Error ? e.message : "Gagal menyimpan."); } finally { setBusy(false); }
   }
   async function deleteResident(w: Resident) {
+    if (!isAuth) {
+      setLoginError("Silakan masuk sebagai pengurus terlebih dahulu untuk menghapus data.");
+      setShowLogin(true);
+      return;
+    }
     if (!window.confirm(`Yakin ingin menghapus warga "${w.name}" (${w.block})? Seluruh data iuran terkait warga ini juga akan dihapus.`)) return;
     setBusy(true); setError("");
     try { const res = await fetch("/api/state", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "resident", id: w.id }) }); const body = await res.json() as { error?: string }; if (!res.ok) throw new Error(body.error || "Gagal menghapus warga."); await load(); }
     catch (e) { setError(e instanceof Error ? e.message : "Gagal menghapus warga."); } finally { setBusy(false); }
   }
   async function deletePayment(id: string) {
+    if (!isAuth) {
+      setLoginError("Silakan masuk sebagai pengurus terlebih dahulu untuk menghapus data.");
+      setShowLogin(true);
+      return;
+    }
     if (!window.confirm("Yakin ingin menghapus catatan pembayaran iuran ini?")) return;
     setBusy(true); setError("");
     try { const res = await fetch("/api/state", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "payment", id }) }); const body = await res.json() as { error?: string }; if (!res.ok) throw new Error(body.error || "Gagal menghapus pembayaran."); await load(); }
     catch (e) { setError(e instanceof Error ? e.message : "Gagal menghapus pembayaran."); } finally { setBusy(false); }
   }
   async function deleteEntry(e: Entry) {
+    if (!isAuth) {
+      setLoginError("Silakan masuk sebagai pengurus terlebih dahulu untuk menghapus data.");
+      setShowLogin(true);
+      return;
+    }
     if (!window.confirm(`Yakin ingin menghapus transaksi "${e.description}"?`)) return;
     setBusy(true); setError("");
     try { const res = await fetch("/api/state", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "entry", id: e.id }) }); const body = await res.json() as { error?: string }; if (!res.ok) throw new Error(body.error || "Gagal menghapus transaksi."); await load(); }
     catch (err) { setError(err instanceof Error ? err.message : "Gagal menghapus transaksi."); } finally { setBusy(false); }
   }
   async function deleteTransfer(t: Transfer) {
+    if (!isAuth) {
+      setLoginError("Silakan masuk sebagai pengurus terlebih dahulu untuk membatalkan transaksi.");
+      setShowLogin(true);
+      return;
+    }
     if (!window.confirm(`Yakin ingin membatalkan pemindahan dana ${rupiah(t.amount)} (${channelLabel(t.fromChannel)} → ${channelLabel(t.toChannel)})?`)) return;
     setBusy(true); setError("");
     try { const res = await fetch("/api/state", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "transfer", id: t.id }) }); const body = await res.json() as { error?: string }; if (!res.ok) throw new Error(body.error || "Gagal membatalkan pemindahan dana."); await load(); }
     catch (err) { setError(err instanceof Error ? err.message : "Gagal membatalkan pemindahan dana."); } finally { setBusy(false); }
   }
   async function deleteLoan(l: Loan) {
+    if (!isAuth) {
+      setLoginError("Silakan masuk sebagai pengurus terlebih dahulu untuk menghapus pinjaman.");
+      setShowLogin(true);
+      return;
+    }
     if (!window.confirm(`Yakin ingin menghapus pinjaman untuk "${l.borrower}"? Seluruh pengembalian terkait juga akan dihapus.`)) return;
     setBusy(true); setError("");
     try { const res = await fetch("/api/state", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "loan", id: l.id }) }); const body = await res.json() as { error?: string }; if (!res.ok) throw new Error(body.error || "Gagal menghapus pinjaman."); await load(); }
@@ -209,11 +410,112 @@ export default function HomePage() {
       <div className="brand"><div className="brand-icon"><img src="/karier-logo.svg" alt="Logo KARIER" width="48" height="48" /></div><div><strong>KARIER</strong><span>Kas Rutin Irene Residence</span></div><button className="mobile-close" onClick={() => setMenu(false)} aria-label="Tutup menu"><X size={20} /></button></div>
       <p className="sidebar-caption">PENGELOLAAN</p>
       <nav aria-label="Menu utama">{navigation.map(([key, label, icon]) => <button key={key} className={`nav-button ${tab === key ? "active" : ""}`} onClick={() => { setTab(key); setMenu(false) }}>{icon}{label}</button>)}</nav>
+      {isAuth ? (
+        <div className="auth-sidebar-box">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#c3e8ca', fontSize: '12px', marginBottom: '8px' }}>
+            <ShieldCheck size={15} /> <strong>Pengurus: {currentUser}</strong>
+          </div>
+          <div className="auth-sidebar-actions">
+            <button
+              type="button"
+              className="auth-sidebar-btn"
+              onClick={() => {
+                setChangePwError("");
+                setChangePwSuccess("");
+                setChangePwForm({ currentPassword: "", newPassword: "", confirmPassword: "", newUsername: currentUser });
+                setShowChangePassword(true);
+                setMenu(false);
+              }}
+            >
+              <KeyRound size={13} /> Ubah Sandi
+            </button>
+            <button
+              type="button"
+              className="auth-sidebar-btn logout"
+              onClick={() => {
+                setMenu(false);
+                void doLogout();
+              }}
+            >
+              <LogOut size={13} /> Keluar
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ padding: '0 4px 12px', marginTop: 'auto' }}>
+          <button
+            type="button"
+            className="button primary"
+            style={{ width: '100%', fontSize: '13px', minHeight: '38px' }}
+            onClick={() => {
+              setLoginError("");
+              setShowLogin(true);
+              setMenu(false);
+            }}
+          >
+            <LogIn size={14} /> Masuk Pengurus
+          </button>
+        </div>
+      )}
       <div className="sidebar-foot"><span>Tarif iuran tetap</span><strong>Rp5.000 <small>/ bulan</small></strong><p>Uang muka dialokasikan saat bulannya tiba.</p></div>
     </aside>
     {menu && <button className="mobile-overlay" aria-label="Tutup menu" onClick={() => setMenu(false)} />}
     <main className="main">
-      <header className="topbar"><div className="topbar-left"><button className="mobile-menu" aria-label="Buka menu" onClick={() => setMenu(true)}><Menu size={23} /></button><span>Keuangan RT</span><span className="topbar-separator">/</span><strong>{navigation.find(([key]) => key === tab)?.[1]}</strong></div><div className="period-chip"><CalendarDays size={16} /><span>Data awal dari lampiran</span></div></header>
+      <header className="topbar">
+        <div className="topbar-left">
+          <button className="mobile-menu" aria-label="Buka menu" onClick={() => setMenu(true)}>
+            <Menu size={23} />
+          </button>
+          <span>Keuangan RT</span>
+          <span className="topbar-separator">/</span>
+          <strong>{navigation.find(([key]) => key === tab)?.[1]}</strong>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div className="period-chip"><CalendarDays size={16} /><span>Data awal dari lampiran</span></div>
+          {isAuth ? (
+            <div className="auth-badge-group">
+              <span className="auth-chip" title="Akun Pengurus Aktif">
+                <ShieldCheck size={14} /> {currentUser}
+              </span>
+              <button
+                type="button"
+                className="button subtle"
+                style={{ padding: '4px 10px', minHeight: '34px', fontSize: '12px' }}
+                onClick={() => {
+                  setChangePwError("");
+                  setChangePwSuccess("");
+                  setChangePwForm({ currentPassword: "", newPassword: "", confirmPassword: "", newUsername: currentUser });
+                  setShowChangePassword(true);
+                }}
+                title="Ubah kata sandi pengurus"
+              >
+                <KeyRound size={13} /> Ubah Sandi
+              </button>
+              <button
+                type="button"
+                className="button subtle"
+                style={{ padding: '4px 10px', minHeight: '34px', fontSize: '12px', color: '#b53b2d' }}
+                onClick={doLogout}
+                title="Keluar dari sesi pengurus"
+              >
+                <LogOut size={13} /> Keluar
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="button primary"
+              style={{ padding: '5px 14px', minHeight: '34px', fontSize: '13px' }}
+              onClick={() => {
+                setLoginError("");
+                setShowLogin(true);
+              }}
+            >
+              <LogIn size={14} /> Masuk Pengurus
+            </button>
+          )}
+        </div>
+      </header>
       <div className="content">
         <div className="heading"><div><p className="eyebrow">PENCATATAN IURAN RT</p><h1>{tab === "ringkasan" ? "Ringkasan keuangan" : tab === "warga" ? "Iuran warga" : tab === "kas" ? "Buku kas" : tab === "pinjaman" ? "Pinjaman kas" : "Unduh laporan"}</h1><p className="subheading">Posisi akhir bulan berdasarkan transaksi yang tercatat.</p></div><div className="heading-actions"><label className="month-control">Bulan <select aria-label="Pilih bulan laporan" value={month} onChange={e => setMonth(e.target.value)}>{monthOptions.map(m => <option key={m} value={m}>{monthLabel(m)}{m === today().slice(0, 7) ? " (Bulan ini)" : ""}</option>)}</select></label>{month !== today().slice(0, 7) && <button type="button" className="button subtle" style={{ padding: '4px 10px', minHeight: '36px', fontSize: '12px' }} onClick={() => setMonth(today().slice(0, 7))}>Ke Bulan Ini ({monthLabel(today().slice(0, 7))}) →</button>}{tab !== "laporan" && <button className="button primary" onClick={() => open(tab === "pinjaman" ? "loan" : "payment")}><Plus size={17} /> {tab === "pinjaman" ? "Catat pinjaman" : "Catat iuran"}</button>}</div></div>
         {successMsg && <div role="status" style={{ background: '#e8f6f1', color: '#19553f', border: '1px solid #b7e3cf', padding: '12px 16px', borderRadius: '9px', marginBottom: '15px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}><b>✓</b> {successMsg}</div>}
@@ -252,6 +554,219 @@ export default function HomePage() {
       })()}
       {error && <p className="form-error" role="alert">{error}</p>}<button className="button primary form-submit" disabled={busy}>{busy ? "Menyimpan…" : "Simpan"}</button>
     </form></DialogContent></Dialog>
+    <Dialog
+      open={showLogin}
+      onOpenChange={open => {
+        setShowLogin(open);
+        if (!open) {
+          setIsResetMode(false);
+          setResetError("");
+          setLoginError("");
+        }
+      }}
+    >
+      <DialogContent className="dialog-content">
+        <DialogHeader>
+          <DialogTitle>{isResetMode ? "Reset Kata Sandi Pengurus" : "Masuk Pengurus KARIER"}</DialogTitle>
+        </DialogHeader>
+        {isResetMode ? (
+          <form onSubmit={doResetPassword} className="form-grid">
+            <p className="form-help">
+              Reset kata sandi menggunakan Kunci Pemulihan Server (Master Key). Anda dapat menetapkan sandi baru tanpa perlu mengetahui sandi lama.
+            </p>
+            {resetError && (
+              <p className="form-error" role="alert" style={{ background: '#fff2ee', border: '1px solid #f8cdbe', padding: '9px 12px', borderRadius: '8px' }}>
+                {resetError}
+              </p>
+            )}
+            {resetSuccess && (
+              <div role="status" style={{ background: '#e8f6f1', color: '#19553f', border: '1px solid #b7e3cf', padding: '10px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: 600 }}>
+                ✓ {resetSuccess}
+              </div>
+            )}
+            <label>
+              Kunci Pemulihan Server (Master Key)
+              <input
+                required
+                type="password"
+                value={resetForm.resetKey}
+                onChange={e => setResetForm({ ...resetForm, resetKey: e.target.value })}
+                placeholder="Nilai KARIER_ADMIN_PASSWORD dari .env.local"
+              />
+            </label>
+            <div style={{ fontSize: '12px', color: '#68776b', marginTop: '-6px', marginBottom: '2px' }}>
+              Bawaan sistem: <code>adminpassword123456</code> (atau sesuai variabel lingkungan server Anda).
+            </div>
+            <label>
+              Nama Pengurus (Username)
+              <input
+                required
+                value={resetForm.username}
+                onChange={e => setResetForm({ ...resetForm, username: e.target.value })}
+                placeholder="admin"
+              />
+            </label>
+            <label>
+              Kata Sandi Baru (Minimal 6 karakter)
+              <input
+                required
+                type="password"
+                value={resetForm.newPassword}
+                onChange={e => setResetForm({ ...resetForm, newPassword: e.target.value })}
+                placeholder="Masukkan kata sandi baru"
+              />
+            </label>
+            <label>
+              Ulangi Kata Sandi Baru
+              <input
+                required
+                type="password"
+                value={resetForm.confirmPassword}
+                onChange={e => setResetForm({ ...resetForm, confirmPassword: e.target.value })}
+                placeholder="Ketik ulang kata sandi baru"
+              />
+            </label>
+            <div style={{ fontSize: '12px', color: '#57755f', background: '#f0f6ee', padding: '10px 12px', borderRadius: '8px', lineHeight: 1.5 }}>
+              💡 <b>Opsi Terminal:</b> Jalankan <code>npm run auth:reset</code> atau klik ganda <b>RESET_SANDI.cmd</b> di komputer Anda.
+            </div>
+            <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+              <button className="button primary form-submit" style={{ flex: 1 }} disabled={resetBusy}>
+                {resetBusy ? "Mereset…" : "Reset & Masuk"}
+              </button>
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => {
+                  setIsResetMode(false);
+                  setResetError("");
+                }}
+                style={{ padding: '0 16px' }}
+              >
+                Batal
+              </button>
+            </div>
+          </form>
+        ) : (
+          <form onSubmit={doLogin} className="form-grid">
+            <p className="form-help">
+              Masuk sebagai pengurus untuk mencatat iuran warga, mengelola transaksi buku kas, mencatat pinjaman, atau menghapus data.
+            </p>
+            {loginError && (
+              <p className="form-error" role="alert" style={{ background: '#fff2ee', border: '1px solid #f8cdbe', padding: '9px 12px', borderRadius: '8px' }}>
+                {loginError}
+              </p>
+            )}
+            <label>
+              Nama Pengurus (Username)
+              <input
+                required
+                autoFocus
+                value={loginForm.username}
+                onChange={e => setLoginForm({ ...loginForm, username: e.target.value })}
+                placeholder="admin"
+              />
+            </label>
+            <label>
+              Kata Sandi (Password)
+              <input
+                required
+                type="password"
+                value={loginForm.password}
+                onChange={e => setLoginForm({ ...loginForm, password: e.target.value })}
+                placeholder="Masukkan kata sandi pengurus"
+              />
+            </label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', marginTop: '-4px' }}>
+              <span style={{ color: '#889a8c' }}>Lupa sandi pengurus?</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsResetMode(true);
+                  setLoginError("");
+                  setResetError("");
+                }}
+                style={{ background: 'none', border: 'none', color: '#1f5f3e', fontWeight: 600, textDecoration: 'underline', cursor: 'pointer', padding: 0 }}
+              >
+                Reset Kata Sandi
+              </button>
+            </div>
+            <div style={{ fontSize: '12px', color: '#57755f', background: '#f0f6ee', padding: '10px 12px', borderRadius: '8px', lineHeight: 1.5 }}>
+              Kredensial bawaan: Pengurus <b>admin</b> &middot; Sandi: <b>adminpassword123456</b>
+              <br /><span style={{ color: '#889a8c' }}>Kata sandi dapat diubah kapan saja melalui tombol <b>Ubah Sandi</b> setelah masuk.</span>
+            </div>
+            <button className="button primary form-submit" disabled={loginBusy}>
+              {loginBusy ? "Memeriksa…" : "Masuk"}
+            </button>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
+    <Dialog open={showChangePassword} onOpenChange={setShowChangePassword}>
+      <DialogContent className="dialog-content">
+        <DialogHeader>
+          <DialogTitle>Ubah Kata Sandi Pengurus</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={doChangePassword} className="form-grid">
+          <p className="form-help">
+            Perbarui kata sandi untuk mengamankan pembukuan kas RT. Perubahan akan disimpan secara permanen di database.
+          </p>
+          {changePwError && (
+            <p className="form-error" role="alert" style={{ background: '#fff2ee', border: '1px solid #f8cdbe', padding: '9px 12px', borderRadius: '8px' }}>
+              {changePwError}
+            </p>
+          )}
+          {changePwSuccess && (
+            <div role="status" style={{ background: '#e8f6f1', color: '#19553f', border: '1px solid #b7e3cf', padding: '10px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: 600 }}>
+              ✓ {changePwSuccess}
+            </div>
+          )}
+          <label>
+            Nama Pengurus (Username)
+            <input
+              required
+              value={changePwForm.newUsername}
+              onChange={e => setChangePwForm({ ...changePwForm, newUsername: e.target.value })}
+              placeholder="admin"
+            />
+          </label>
+          <label>
+            Kata Sandi Saat Ini
+            <input
+              required
+              type="password"
+              value={changePwForm.currentPassword}
+              onChange={e => setChangePwForm({ ...changePwForm, currentPassword: e.target.value })}
+              placeholder="Masukkan kata sandi lama"
+            />
+          </label>
+          <label>
+            Kata Sandi Baru (Minimal 6 karakter)
+            <input
+              required
+              type="password"
+              minLength={6}
+              value={changePwForm.newPassword}
+              onChange={e => setChangePwForm({ ...changePwForm, newPassword: e.target.value })}
+              placeholder="Masukkan kata sandi baru"
+            />
+          </label>
+          <label>
+            Konfirmasi Kata Sandi Baru
+            <input
+              required
+              type="password"
+              minLength={6}
+              value={changePwForm.confirmPassword}
+              onChange={e => setChangePwForm({ ...changePwForm, confirmPassword: e.target.value })}
+              placeholder="Ulangi kata sandi baru"
+            />
+          </label>
+          <button className="button primary form-submit" disabled={changePwBusy}>
+            {changePwBusy ? "Menyimpan perubahan…" : "Simpan Kata Sandi Baru"}
+          </button>
+        </form>
+      </DialogContent>
+    </Dialog>
   </div>;
 }
 
