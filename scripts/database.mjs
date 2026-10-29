@@ -1,4 +1,5 @@
 import {resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
 import pg from 'pg';
 import {PGlite} from '@electric-sql/pglite';
 import {readFile,mkdir,writeFile} from 'node:fs/promises';
@@ -9,7 +10,7 @@ let client;
 if(connectionString){
   client=new pg.Client({connectionString,connectionTimeoutMillis:10000});
 } else {
-  const pgliteDir=new URL('../database/pglite_db',import.meta.url).pathname;
+  const pgliteDir=fileURLToPath(new URL('../database/pglite_db',import.meta.url));
   await mkdir(pgliteDir,{recursive:true});
   const db=new PGlite(pgliteDir);
   client={

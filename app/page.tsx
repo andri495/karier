@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BarChart, Bar, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, Legend } from "recharts";
-import { ArrowLeftRight, BookOpen, CalendarDays, Download, FileText, HandCoins, Home, KeyRound, LogIn, LogOut, Menu, Plus, Printer, ReceiptText, ShieldCheck, Trash2, Users, Wallet, X } from "lucide-react";
+import { ArrowLeftRight, BookOpen, CalendarDays, Download, FileText, HandCoins, Home, KeyRound, LogIn, LogOut, Menu, Plus, Printer, ReceiptText, ShieldCheck, Trash2, Upload, Users, Wallet, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -56,12 +56,12 @@ function calculate(data: State, month: string) {
 }
 
 function transactionRows(data: State, result: ReturnType<typeof calculate>) {
-  const rows: { id: string; date: string; description: string; kind: string; channel: string; incoming: number; outgoing: number }[] = [];
-  for (const p of result.payments) rows.push({ id: p.id, date: p.paidDate, description: `Iuran · ${data.residents.find(w => w.id === p.residentId)?.name ?? p.residentId}`, kind: "Iuran", channel: channelLabel(p.channel), incoming: p.amount, outgoing: 0 });
-  for (const e of result.entries) rows.push({ id: e.id, date: e.date, description: e.description, kind: e.kind === "income" ? "Pemasukan" : "Pengeluaran", channel: channelLabel(e.channel), incoming: e.kind === "income" ? e.amount : 0, outgoing: e.kind === "expense" ? e.amount : 0 });
-  for (const l of result.loans) rows.push({ id: l.id, date: l.date, description: `Dipinjam · ${l.borrower}`, kind: "Pinjaman", channel: channelLabel(l.channel), incoming: 0, outgoing: l.amount });
-  for (const r of result.repayments) rows.push({ id: r.id, date: r.date, description: `Dikembalikan · ${result.loans.find(l => l.id === r.loanId)?.borrower ?? "Peminjam"}`, kind: "Pengembalian", channel: channelLabel(r.channel), incoming: r.amount, outgoing: 0 });
-  for (const t of result.transfers) rows.push({ id: t.id, date: t.date, description: t.note || "Pemindahan kas", kind: "Pemindahan", channel: `${channelLabel(t.fromChannel)} → ${channelLabel(t.toChannel)}`, incoming: 0, outgoing: 0 });
+  const rows: { id: string; date: string; description: string; kind: string; channel: string; incoming: number; outgoing: number; rawKind: "payment" | "entry" | "loan" | "repayment" | "transfer"; rawId: string }[] = [];
+  for (const p of result.payments) rows.push({ id: p.id, date: p.paidDate, description: `Iuran · ${data.residents.find(w => w.id === p.residentId)?.name ?? p.residentId}`, kind: "Iuran", channel: channelLabel(p.channel), incoming: p.amount, outgoing: 0, rawKind: "payment", rawId: p.id });
+  for (const e of result.entries) rows.push({ id: e.id, date: e.date, description: e.description, kind: e.kind === "income" ? "Pemasukan" : "Pengeluaran", channel: channelLabel(e.channel), incoming: e.kind === "income" ? e.amount : 0, outgoing: e.kind === "expense" ? e.amount : 0, rawKind: "entry", rawId: e.id });
+  for (const l of result.loans) rows.push({ id: l.id, date: l.date, description: `Dipinjam · ${l.borrower}`, kind: "Pinjaman", channel: channelLabel(l.channel), incoming: 0, outgoing: l.amount, rawKind: "loan", rawId: l.id });
+  for (const r of result.repayments) rows.push({ id: r.id, date: r.date, description: `Dikembalikan · ${result.loans.find(l => l.id === r.loanId)?.borrower ?? "Peminjam"}`, kind: "Pengembalian", channel: channelLabel(r.channel), incoming: r.amount, outgoing: 0, rawKind: "repayment", rawId: r.id });
+  for (const t of result.transfers) rows.push({ id: t.id, date: t.date, description: t.note || "Pemindahan kas", kind: "Pemindahan", channel: `${channelLabel(t.fromChannel)} → ${channelLabel(t.toChannel)}`, incoming: 0, outgoing: 0, rawKind: "transfer", rawId: t.id });
   let balance = 0;
   return rows.sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id)).map(row => {
     balance += row.incoming - row.outgoing;
@@ -96,42 +96,113 @@ export default function HomePage() {
   const [successMsg, setSuccessMsg] = useState("");
 
   const [isAuth, setIsAuth] = useState(false);
-  const [currentUser, setCurrentUser] = useState("admin");
+  const [currentUser, setCurrentUser] = useState("Super Admin");
+  const [currentUserEmail, setCurrentUserEmail] = useState("superadmin@gmail.com");
+  const [currentUserRole, setCurrentUserRole] = useState<"superadmin" | "admin">("superadmin");
   const [showLogin, setShowLogin] = useState(false);
-  const [loginForm, setLoginForm] = useState({ username: "admin", password: "" });
+  const [loginForm, setLoginForm] = useState({ username: "superadmin@gmail.com", password: "" });
   const [loginError, setLoginError] = useState("");
   const [loginBusy, setLoginBusy] = useState(false);
+
+  const [showUsersModal, setShowUsersModal] = useState(false);
+  const [usersList, setUsersList] = useState<{ id: string; email: string; name: string; role: string; created_at: string }[]>([]);
+  const [usersBusy, setUsersBusy] = useState(false);
+  const [usersError, setUsersError] = useState("");
+  const [usersSuccess, setUsersSuccess] = useState("");
+  const [newUserForm, setNewUserForm] = useState({ email: "", name: "", password: "", role: "admin" });
+  const [newUserBusy, setNewUserBusy] = useState(false);
 
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [changePwForm, setChangePwForm] = useState({
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
-    newUsername: "admin",
+    newUsername: "superadmin@gmail.com",
   });
   const [changePwError, setChangePwError] = useState("");
   const [changePwSuccess, setChangePwSuccess] = useState("");
   const [changePwBusy, setChangePwBusy] = useState(false);
 
-  const [isResetMode, setIsResetMode] = useState(false);
-  const [resetForm, setResetForm] = useState({ resetKey: "", newPassword: "", confirmPassword: "", username: "admin" });
-  const [resetBusy, setResetBusy] = useState(false);
-  const [resetError, setResetError] = useState("");
-  const [resetSuccess, setResetSuccess] = useState("");
+
+  const [pendingRestore, setPendingRestore] = useState<State | null>(null);
+  const [showBackupModal, setShowBackupModal] = useState(false);
+  const [restoreBusy, setRestoreBusy] = useState(false);
+  const [restoreError, setRestoreError] = useState("");
+
+  const loadUsers = useCallback(async () => {
+    setUsersBusy(true);
+    setUsersError("");
+    try {
+      const res = await fetch("/api/users");
+      const body = await res.json() as { users?: { id: string; email: string; name: string; role: string; created_at: string }[]; error?: string };
+      if (!res.ok) throw new Error(body.error || "Gagal memuat akun pengurus.");
+      setUsersList(body.users || []);
+    } catch (err) {
+      setUsersError(err instanceof Error ? err.message : "Gagal memuat akun pengurus.");
+    } finally {
+      setUsersBusy(false);
+    }
+  }, []);
+
+  async function handleAddUser(e: React.FormEvent) {
+    e.preventDefault();
+    setNewUserBusy(true);
+    setUsersError("");
+    setUsersSuccess("");
+    try {
+      const res = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newUserForm),
+      });
+      const body = await res.json() as { message?: string; error?: string };
+      if (!res.ok) throw new Error(body.error || "Gagal menambahkan akun pengurus.");
+      setUsersSuccess(body.message || "Akun pengurus berhasil ditambahkan!");
+      setNewUserForm({ email: "", name: "", password: "", role: "admin" });
+      void loadUsers();
+    } catch (err) {
+      setUsersError(err instanceof Error ? err.message : "Gagal menambahkan akun pengurus.");
+    } finally {
+      setNewUserBusy(false);
+    }
+  }
+
+  async function handleDeleteUser(targetEmail: string, targetName: string) {
+    if (!window.confirm(`Hapus akses pengurus untuk "${targetName}" (${targetEmail})?`)) return;
+    setUsersError("");
+    setUsersSuccess("");
+    try {
+      const res = await fetch("/api/users", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: targetEmail }),
+      });
+      const body = await res.json() as { message?: string; error?: string };
+      if (!res.ok) throw new Error(body.error || "Gagal menghapus akun.");
+      setUsersSuccess(body.message || "Akun berhasil dihapus.");
+      void loadUsers();
+    } catch (err) {
+      setUsersError(err instanceof Error ? err.message : "Gagal menghapus akun.");
+    }
+  }
 
   useEffect(() => {
     fetch("/api/auth")
       .then(r => r.json())
-      .then((d: { authenticated?: boolean; user?: string }) => {
+      .then((d: { authenticated?: boolean; user?: string; email?: string; role?: "superadmin" | "admin" }) => {
         if (d?.authenticated) {
           setIsAuth(true);
-          if (d.user) {
-            setCurrentUser(d.user);
-            setChangePwForm(f => ({ ...f, newUsername: d.user || "admin" }));
-          }
+          if (d.user) setCurrentUser(d.user);
+          if (d.email) setCurrentUserEmail(d.email);
+          if (d.role) setCurrentUserRole(d.role);
+          setChangePwForm(f => ({ ...f, newUsername: d.email || d.user || "superadmin@gmail.com" }));
+        } else {
+          setIsAuth(false);
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        setIsAuth(false);
+      });
   }, []);
 
   async function doLogin(e: React.FormEvent) {
@@ -142,17 +213,23 @@ export default function HomePage() {
       const res = await fetch("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(loginForm),
+        body: JSON.stringify({
+          email: loginForm.username,
+          username: loginForm.username,
+          password: loginForm.password,
+        }),
       });
-      const body = await res.json() as { error?: string; success?: boolean; user?: string };
+      const body = await res.json() as { error?: string; success?: boolean; user?: string; email?: string; role?: "superadmin" | "admin" };
       if (!res.ok) throw new Error(body.error || "Gagal masuk.");
       setIsAuth(true);
-      const u = body.user || loginForm.username || "admin";
+      const u = body.user || loginForm.username || "Super Admin";
       setCurrentUser(u);
-      setChangePwForm(f => ({ ...f, newUsername: u }));
+      if (body.email) setCurrentUserEmail(body.email);
+      if (body.role) setCurrentUserRole(body.role);
+      setChangePwForm(f => ({ ...f, newUsername: body.email || u }));
       setShowLogin(false);
-      setLoginForm({ username: u, password: "" });
-      setSuccessMsg(`Berhasil masuk sebagai pengurus (${u}).`);
+      setLoginForm({ username: body.email || u, password: "" });
+      setSuccessMsg(`Berhasil masuk sebagai ${body.role === 'superadmin' ? 'Super Admin' : 'Pengurus'} (${u}).`);
       setTimeout(() => setSuccessMsg(""), 4000);
       void load();
     } catch (err) {
@@ -201,14 +278,14 @@ export default function HomePage() {
       if (!res.ok) throw new Error(body.error || "Gagal mengubah kata sandi.");
       const updatedUser = body.user || changePwForm.newUsername || currentUser;
       setCurrentUser(updatedUser);
-      setChangePwSuccess("Kata sandi berhasil diperbarui!");
+      setChangePwSuccess("Kata sandi berhasil diperbarui dan disimpan!");
       setTimeout(() => {
         setShowChangePassword(false);
         setChangePwForm({ currentPassword: "", newPassword: "", confirmPassword: "", newUsername: updatedUser });
         setChangePwSuccess("");
-        setSuccessMsg("Kata sandi pengurus berhasil diubah dan disimpan!");
+        setSuccessMsg("Kata sandi pengurus berhasil disimpan!");
         setTimeout(() => setSuccessMsg(""), 4000);
-      }, 1200);
+      }, 1000);
     } catch (err) {
       setChangePwError(err instanceof Error ? err.message : "Gagal mengubah kata sandi.");
     } finally {
@@ -216,59 +293,91 @@ export default function HomePage() {
     }
   }
 
-  async function doResetPassword(e: React.FormEvent) {
-    e.preventDefault();
-    setResetBusy(true);
-    setResetError("");
-    setResetSuccess("");
-    if (resetForm.newPassword !== resetForm.confirmPassword) {
-      setResetError("Konfirmasi kata sandi baru tidak cocok.");
-      setResetBusy(false);
-      return;
-    }
-    if (resetForm.newPassword.length < 6) {
-      setResetError("Kata sandi baru minimal 6 karakter.");
-      setResetBusy(false);
-      return;
-    }
+  const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/auth", {
+      const res = await fetch("/api/state", { cache: "no-store" });
+      const body = await res.json() as State & { error?: string };
+      if (!res.ok) throw new Error(body.error || "Gagal memuat data.");
+      setData(body);
+      setError("");
+
+      try {
+        const cachedRaw = localStorage.getItem("karier_cached_state");
+        if (cachedRaw) {
+          const cached = JSON.parse(cachedRaw) as State;
+          const cachedCount = (cached.residents?.length || 0) + (cached.payments?.length || 0) + (cached.entries?.length || 0);
+          const serverCount = (body.residents?.length || 0) + (body.payments?.length || 0) + (body.entries?.length || 0);
+          if (cachedCount > serverCount) {
+            setPendingRestore(cached);
+          } else {
+            localStorage.setItem("karier_cached_state", JSON.stringify(body));
+          }
+        } else {
+          localStorage.setItem("karier_cached_state", JSON.stringify(body));
+        }
+      } catch {}
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal memuat data.");
+    }
+  }, []);
+
+  async function doRestore(backupData: State) {
+    setRestoreBusy(true);
+    setRestoreError("");
+    try {
+      const res = await fetch("/api/state", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "reset-password",
-          resetKey: resetForm.resetKey,
-          newPassword: resetForm.newPassword,
-          newUsername: resetForm.username || "admin",
+          kind: "restore",
+          data: backupData,
         }),
       });
-      const body = (await res.json()) as { error?: string; success?: boolean; message?: string; user?: string };
-      if (!res.ok) throw new Error(body.error || "Gagal mereset kata sandi.");
-      const u = body.user || resetForm.username || "admin";
-      setIsAuth(true);
-      setCurrentUser(u);
-      setChangePwForm(f => ({ ...f, newUsername: u }));
-      setResetSuccess("Kata sandi berhasil direset! Mengalihkan…");
-      setTimeout(() => {
-        setShowLogin(false);
-        setIsResetMode(false);
-        setResetForm({ resetKey: "", newPassword: "", confirmPassword: "", username: "admin" });
-        setResetSuccess("");
-        setSuccessMsg(`Kata sandi berhasil direset dan Anda telah masuk sebagai pengurus (${u})!`);
-        setTimeout(() => setSuccessMsg(""), 4000);
-        void load();
-      }, 1200);
+      const body = (await res.json()) as { error?: string; ok?: boolean };
+      if (!res.ok) throw new Error(body.error || "Gagal memulihkan cadangan.");
+      setPendingRestore(null);
+      setShowBackupModal(false);
+      setSuccessMsg("✓ Seluruh data berhasil dipulihkan dan disimpan permanen ke server!");
+      setTimeout(() => setSuccessMsg(""), 5000);
+      try {
+        localStorage.setItem("karier_cached_state", JSON.stringify(backupData));
+      } catch {}
+      await load();
     } catch (err) {
-      setResetError(err instanceof Error ? err.message : "Gagal mereset kata sandi.");
+      setRestoreError(err instanceof Error ? err.message : "Gagal memulihkan cadangan.");
     } finally {
-      setResetBusy(false);
+      setRestoreBusy(false);
     }
   }
 
-  const load = useCallback(async () => {
-    try { const res = await fetch("/api/state", { cache: "no-store" }); const body = await res.json() as State & { error?: string }; if (!res.ok) throw new Error(body.error || "Gagal memuat data."); setData(body); setError(""); }
-    catch (e) { setError(e instanceof Error ? e.message : "Gagal memuat data."); }
-  }, []);
+  function downloadBackupJSON() {
+    if (!data) return;
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `karier-cadangan-${today()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function handleFileRestore(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target?.result as string) as State;
+        if (!parsed.residents || !parsed.payments) {
+          throw new Error("Format berkas cadangan JSON tidak valid (harus berisi data warga dan pembayaran).");
+        }
+        void doRestore(parsed);
+      } catch (err) {
+        setRestoreError(err instanceof Error ? err.message : "Gagal membaca berkas cadangan.");
+      }
+    };
+    reader.readAsText(file);
+  }
   useEffect(() => { void load(); }, [load]);
   const result = useMemo(() => data ? calculate(data, month) : null, [data, month]);
   const transactions = useMemo(() => data && result ? transactionRows(data, result) : [], [data, result]);
@@ -285,11 +394,6 @@ export default function HomePage() {
   const monthOptions = Array.from({ length: 113 }, (_, i) => { const y = 2026 + Math.floor((i + 7) / 12), m = (i + 7) % 12 + 1; return `${y}-${String(m).padStart(2, "0")}`; });
   const filtered = data?.residents.filter(w => `${w.name} ${w.block}`.toLowerCase().includes(search.toLowerCase())) ?? [];
   function open(action: Action) {
-    if (!isAuth) {
-      setLoginError("Silakan masuk sebagai pengurus terlebih dahulu untuk menambah atau mengedit data.");
-      setShowLogin(true);
-      return;
-    }
     setError("");
     const defaultDate = month === today().slice(0, 7) ? today() : `${month}-01`;
     const defaultFrom = result && result.balances.cash > 0 ? "cash" : (channels.find(c => (result?.balances[c.id] ?? 0) > 0)?.id || "cash");
@@ -317,59 +421,111 @@ export default function HomePage() {
     catch (e) { setError(e instanceof Error ? e.message : "Gagal menyimpan."); } finally { setBusy(false); }
   }
   async function deleteResident(w: Resident) {
-    if (!isAuth) {
-      setLoginError("Silakan masuk sebagai pengurus terlebih dahulu untuk menghapus data.");
-      setShowLogin(true);
-      return;
-    }
+    if (!isAuth) { setLoginError("Silakan masuk sebagai pengurus terlebih dahulu."); setShowLogin(true); return; }
     if (!window.confirm(`Yakin ingin menghapus warga "${w.name}" (${w.block})? Seluruh data iuran terkait warga ini juga akan dihapus.`)) return;
     setBusy(true); setError("");
-    try { const res = await fetch("/api/state", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "resident", id: w.id }) }); const body = await res.json() as { error?: string }; if (!res.ok) throw new Error(body.error || "Gagal menghapus warga."); await load(); }
+    try { const res = await fetch("/api/state", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "resident", id: w.id }) }); const body = await res.json() as { error?: string }; if (!res.ok) throw new Error(body.error || "Gagal menghapus warga."); await load(); setSuccessMsg(`Data warga ${w.name} berhasil dihapus.`); setTimeout(() => setSuccessMsg(""), 4000); }
     catch (e) { setError(e instanceof Error ? e.message : "Gagal menghapus warga."); } finally { setBusy(false); }
   }
   async function deletePayment(id: string) {
-    if (!isAuth) {
-      setLoginError("Silakan masuk sebagai pengurus terlebih dahulu untuk menghapus data.");
-      setShowLogin(true);
-      return;
-    }
+    if (!isAuth) { setLoginError("Silakan masuk sebagai pengurus terlebih dahulu."); setShowLogin(true); return; }
     if (!window.confirm("Yakin ingin menghapus catatan pembayaran iuran ini?")) return;
     setBusy(true); setError("");
-    try { const res = await fetch("/api/state", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "payment", id }) }); const body = await res.json() as { error?: string }; if (!res.ok) throw new Error(body.error || "Gagal menghapus pembayaran."); await load(); }
+    try { const res = await fetch("/api/state", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "payment", id }) }); const body = await res.json() as { error?: string }; if (!res.ok) throw new Error(body.error || "Gagal menghapus pembayaran."); await load(); setSuccessMsg("Catatan pembayaran berhasil dihapus!"); setTimeout(() => setSuccessMsg(""), 4000); }
     catch (e) { setError(e instanceof Error ? e.message : "Gagal menghapus pembayaran."); } finally { setBusy(false); }
   }
   async function deleteEntry(e: Entry) {
-    if (!isAuth) {
-      setLoginError("Silakan masuk sebagai pengurus terlebih dahulu untuk menghapus data.");
-      setShowLogin(true);
-      return;
-    }
+    if (!isAuth) { setLoginError("Silakan masuk sebagai pengurus terlebih dahulu."); setShowLogin(true); return; }
     if (!window.confirm(`Yakin ingin menghapus transaksi "${e.description}"?`)) return;
     setBusy(true); setError("");
-    try { const res = await fetch("/api/state", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "entry", id: e.id }) }); const body = await res.json() as { error?: string }; if (!res.ok) throw new Error(body.error || "Gagal menghapus transaksi."); await load(); }
+    try { const res = await fetch("/api/state", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "entry", id: e.id }) }); const body = await res.json() as { error?: string }; if (!res.ok) throw new Error(body.error || "Gagal menghapus transaksi."); await load(); setSuccessMsg("Transaksi berhasil dihapus!"); setTimeout(() => setSuccessMsg(""), 4000); }
     catch (err) { setError(err instanceof Error ? err.message : "Gagal menghapus transaksi."); } finally { setBusy(false); }
   }
   async function deleteTransfer(t: Transfer) {
-    if (!isAuth) {
-      setLoginError("Silakan masuk sebagai pengurus terlebih dahulu untuk membatalkan transaksi.");
-      setShowLogin(true);
-      return;
-    }
+    if (!isAuth) { setLoginError("Silakan masuk sebagai pengurus terlebih dahulu."); setShowLogin(true); return; }
     if (!window.confirm(`Yakin ingin membatalkan pemindahan dana ${rupiah(t.amount)} (${channelLabel(t.fromChannel)} → ${channelLabel(t.toChannel)})?`)) return;
     setBusy(true); setError("");
-    try { const res = await fetch("/api/state", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "transfer", id: t.id }) }); const body = await res.json() as { error?: string }; if (!res.ok) throw new Error(body.error || "Gagal membatalkan pemindahan dana."); await load(); }
+    try { const res = await fetch("/api/state", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "transfer", id: t.id }) }); const body = await res.json() as { error?: string }; if (!res.ok) throw new Error(body.error || "Gagal membatalkan pemindahan dana."); await load(); setSuccessMsg("Pemindahan dana berhasil dibatalkan!"); setTimeout(() => setSuccessMsg(""), 4000); }
     catch (err) { setError(err instanceof Error ? err.message : "Gagal membatalkan pemindahan dana."); } finally { setBusy(false); }
   }
   async function deleteLoan(l: Loan) {
+    if (!isAuth) { setLoginError("Silakan masuk sebagai pengurus terlebih dahulu."); setShowLogin(true); return; }
+    if (!window.confirm(`Yakin ingin menghapus pinjaman untuk "${l.borrower}"? Seluruh pengembalian terkait juga akan dihapus.`)) return;
+    setBusy(true); setError("");
+    try { const res = await fetch("/api/state", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "loan", id: l.id }) }); const body = await res.json() as { error?: string }; if (!res.ok) throw new Error(body.error || "Gagal menghapus pinjaman."); await load(); setSuccessMsg("Catatan pinjaman berhasil dihapus!"); setTimeout(() => setSuccessMsg(""), 4000); }
+    catch (err) { setError(err instanceof Error ? err.message : "Gagal menghapus pinjaman."); } finally { setBusy(false); }
+  }
+  async function deleteRepayment(id: string, desc = "") {
+    if (!isAuth) { setLoginError("Silakan masuk sebagai pengurus terlebih dahulu."); setShowLogin(true); return; }
+    if (!window.confirm(`Yakin ingin menghapus catatan pengembalian pinjaman ${desc ? `"${desc}"` : ""}?`)) return;
+    setBusy(true); setError("");
+    try {
+      const res = await fetch("/api/state", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "repayment", id }) });
+      const body = await res.json() as { error?: string };
+      if (!res.ok) throw new Error(body.error || "Gagal menghapus pengembalian pinjaman.");
+      await load();
+      setSuccessMsg("Catatan pengembalian pinjaman berhasil dihapus!");
+      setTimeout(() => setSuccessMsg(""), 4000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal menghapus pengembalian pinjaman.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function deleteTransactionRow(t: (typeof transactions)[number]) {
     if (!isAuth) {
-      setLoginError("Silakan masuk sebagai pengurus terlebih dahulu untuk menghapus pinjaman.");
+      setLoginError("Silakan masuk sebagai pengurus terlebih dahulu untuk menghapus transaksi.");
       setShowLogin(true);
       return;
     }
-    if (!window.confirm(`Yakin ingin menghapus pinjaman untuk "${l.borrower}"? Seluruh pengembalian terkait juga akan dihapus.`)) return;
-    setBusy(true); setError("");
-    try { const res = await fetch("/api/state", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "loan", id: l.id }) }); const body = await res.json() as { error?: string }; if (!res.ok) throw new Error(body.error || "Gagal menghapus pinjaman."); await load(); }
-    catch (err) { setError(err instanceof Error ? err.message : "Gagal menghapus pinjaman."); } finally { setBusy(false); }
+    if (t.rawKind === "payment") {
+      await deletePayment(t.rawId);
+    } else if (t.rawKind === "entry") {
+      const entryObj = data?.entries.find(e => e.id === t.rawId);
+      if (entryObj) {
+        await deleteEntry(entryObj);
+      } else {
+        if (!window.confirm(`Yakin ingin menghapus transaksi "${t.description}"?`)) return;
+        setBusy(true); setError("");
+        try {
+          const res = await fetch("/api/state", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "entry", id: t.rawId }) });
+          const body = await res.json() as { error?: string };
+          if (!res.ok) throw new Error(body.error || "Gagal menghapus transaksi.");
+          await load();
+          setSuccessMsg("Transaksi berhasil dihapus!");
+          setTimeout(() => setSuccessMsg(""), 4000);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Gagal menghapus transaksi.");
+        } finally {
+          setBusy(false);
+        }
+      }
+    } else if (t.rawKind === "transfer") {
+      const transferObj = data?.transfers.find(x => x.id === t.rawId);
+      if (transferObj) {
+        await deleteTransfer(transferObj);
+      } else {
+        if (!window.confirm(`Yakin ingin membatalkan transaksi pemindahan kas ini?`)) return;
+        setBusy(true); setError("");
+        try {
+          const res = await fetch("/api/state", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "transfer", id: t.rawId }) });
+          const body = await res.json() as { error?: string };
+          if (!res.ok) throw new Error(body.error || "Gagal membatalkan pemindahan kas.");
+          await load();
+          setSuccessMsg("Pemindahan kas berhasil dibatalkan!");
+          setTimeout(() => setSuccessMsg(""), 4000);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Gagal membatalkan pemindahan kas.");
+        } finally {
+          setBusy(false);
+        }
+      }
+    } else if (t.rawKind === "loan") {
+      const loanObj = data?.loans.find(x => x.id === t.rawId);
+      if (loanObj) await deleteLoan(loanObj);
+    } else if (t.rawKind === "repayment") {
+      await deleteRepayment(t.rawId, t.description);
+    }
   }
   function csv() { if (!data || !result) return; const rows = [["Nama", "Blok", "Total dibayar", "Iuran bulan ini", "Dana blokir tersisa"], ...data.residents.map(w => [w.name, w.block, result.residentPaid(w.id), result.status(w.id) ? data.rate : 0, result.residentBlocked(w.id)])]; const content = "\ufeff" + rows.map(r => r.map(x => `"${(typeof x === "string" && /^[=+@-]/.test(x) ? "'" + x : String(x)).replaceAll('"', '""')}"`).join(";")).join("\r\n"); const url = URL.createObjectURL(new Blob([content], { type: "text/csv;charset=utf-8" })); const link = document.createElement("a"); link.href = url; link.download = `rekonsiliasi-iuran-${month}.csv`; link.click(); URL.revokeObjectURL(url); }
   function downloadReport() {
@@ -412,17 +568,45 @@ export default function HomePage() {
       <nav aria-label="Menu utama">{navigation.map(([key, label, icon]) => <button key={key} className={`nav-button ${tab === key ? "active" : ""}`} onClick={() => { setTab(key); setMenu(false) }}>{icon}{label}</button>)}</nav>
       {isAuth ? (
         <div className="auth-sidebar-box">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#c3e8ca', fontSize: '12px', marginBottom: '8px' }}>
-            <ShieldCheck size={15} /> <strong>Pengurus: {currentUser}</strong>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', color: '#c3e8ca', fontSize: '12px', marginBottom: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <ShieldCheck size={15} /> <strong>{currentUserRole === 'superadmin' ? '👑 Super Admin' : 'Pengurus'}</strong>
+            </div>
+            <span style={{ fontSize: '11px', color: '#9fc2a4', wordBreak: 'break-all' }}>{currentUserEmail || currentUser}</span>
           </div>
           <div className="auth-sidebar-actions">
+            {currentUserRole === 'superadmin' && (
+              <button
+                type="button"
+                className="auth-sidebar-btn"
+                style={{ background: '#225d43', borderColor: '#40926c', color: '#f0fbf2', fontWeight: 700 }}
+                onClick={() => {
+                  setShowUsersModal(true);
+                  void loadUsers();
+                  setMenu(false);
+                }}
+              >
+                <Users size={13} /> Kelola Pengurus (Gmail)
+              </button>
+            )}
+            <button
+              type="button"
+              className="auth-sidebar-btn"
+              onClick={() => {
+                setRestoreError("");
+                setShowBackupModal(true);
+                setMenu(false);
+              }}
+            >
+              <Download size={13} /> Cadangan
+            </button>
             <button
               type="button"
               className="auth-sidebar-btn"
               onClick={() => {
                 setChangePwError("");
                 setChangePwSuccess("");
-                setChangePwForm({ currentPassword: "", newPassword: "", confirmPassword: "", newUsername: currentUser });
+                setChangePwForm({ currentPassword: "", newPassword: "", confirmPassword: "", newUsername: currentUserEmail || currentUser });
                 setShowChangePassword(true);
                 setMenu(false);
               }}
@@ -442,7 +626,19 @@ export default function HomePage() {
           </div>
         </div>
       ) : (
-        <div style={{ padding: '0 4px 12px', marginTop: 'auto' }}>
+        <div style={{ padding: '0 4px 12px', marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <button
+            type="button"
+            className="button subtle"
+            style={{ width: '100%', fontSize: '12px', minHeight: '34px', justifyContent: 'center' }}
+            onClick={() => {
+              setRestoreError("");
+              setShowBackupModal(true);
+              setMenu(false);
+            }}
+          >
+            <Download size={13} /> Cadangan Data
+          </button>
           <button
             type="button"
             className="button primary"
@@ -471,12 +667,38 @@ export default function HomePage() {
           <strong>{navigation.find(([key]) => key === tab)?.[1]}</strong>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div className="period-chip"><CalendarDays size={16} /><span>Data awal dari lampiran</span></div>
+          <div className="period-chip"><CalendarDays size={16} /><span>Penyimpanan Otomatis Aktif</span></div>
           {isAuth ? (
             <div className="auth-badge-group">
-              <span className="auth-chip" title="Akun Pengurus Aktif">
-                <ShieldCheck size={14} /> {currentUser}
+              <span className="auth-chip" title={`${currentUserRole === 'superadmin' ? 'Super Admin' : 'Pengurus'}: ${currentUserEmail}`}>
+                <ShieldCheck size={14} /> {currentUserRole === 'superadmin' ? '👑 Super Admin' : 'Pengurus'}: {currentUser}
               </span>
+              {currentUserRole === 'superadmin' && (
+                <button
+                  type="button"
+                  className="button subtle"
+                  style={{ padding: '4px 10px', minHeight: '34px', fontSize: '12px', borderColor: '#2e7550', color: '#1a5037', fontWeight: 700, background: '#f0f9f3' }}
+                  onClick={() => {
+                    setShowUsersModal(true);
+                    void loadUsers();
+                  }}
+                  title="Kelola Akun Pengurus & Pengikut (Gmail)"
+                >
+                  <Users size={13} /> Kelola Pengurus
+                </button>
+              )}
+              <button
+                type="button"
+                className="button subtle"
+                style={{ padding: '4px 10px', minHeight: '34px', fontSize: '12px' }}
+                onClick={() => {
+                  setRestoreError("");
+                  setShowBackupModal(true);
+                }}
+                title="Cadangan & Pemulihan Data Permanen"
+              >
+                <Download size={13} /> Cadangan
+              </button>
               <button
                 type="button"
                 className="button subtle"
@@ -484,7 +706,7 @@ export default function HomePage() {
                 onClick={() => {
                   setChangePwError("");
                   setChangePwSuccess("");
-                  setChangePwForm({ currentPassword: "", newPassword: "", confirmPassword: "", newUsername: currentUser });
+                  setChangePwForm({ currentPassword: "", newPassword: "", confirmPassword: "", newUsername: currentUserEmail || currentUser });
                   setShowChangePassword(true);
                 }}
                 title="Ubah kata sandi pengurus"
@@ -502,23 +724,52 @@ export default function HomePage() {
               </button>
             </div>
           ) : (
-            <button
-              type="button"
-              className="button primary"
-              style={{ padding: '5px 14px', minHeight: '34px', fontSize: '13px' }}
-              onClick={() => {
-                setLoginError("");
-                setShowLogin(true);
-              }}
-            >
-              <LogIn size={14} /> Masuk Pengurus
-            </button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                className="button subtle"
+                style={{ padding: '4px 10px', minHeight: '34px', fontSize: '12px' }}
+                onClick={() => {
+                  setRestoreError("");
+                  setShowBackupModal(true);
+                }}
+                title="Cadangan & Pemulihan Data Permanen"
+              >
+                <Download size={13} /> Cadangan
+              </button>
+              <button
+                type="button"
+                className="button primary"
+                style={{ padding: '5px 14px', minHeight: '34px', fontSize: '13px' }}
+                onClick={() => {
+                  setLoginError("");
+                  setShowLogin(true);
+                }}
+              >
+                <LogIn size={14} /> Masuk Pengurus
+              </button>
+            </div>
           )}
         </div>
       </header>
       <div className="content">
         <div className="heading"><div><p className="eyebrow">PENCATATAN IURAN RT</p><h1>{tab === "ringkasan" ? "Ringkasan keuangan" : tab === "warga" ? "Iuran warga" : tab === "kas" ? "Buku kas" : tab === "pinjaman" ? "Pinjaman kas" : "Unduh laporan"}</h1><p className="subheading">Posisi akhir bulan berdasarkan transaksi yang tercatat.</p></div><div className="heading-actions"><label className="month-control">Bulan <select aria-label="Pilih bulan laporan" value={month} onChange={e => setMonth(e.target.value)}>{monthOptions.map(m => <option key={m} value={m}>{monthLabel(m)}{m === today().slice(0, 7) ? " (Bulan ini)" : ""}</option>)}</select></label>{month !== today().slice(0, 7) && <button type="button" className="button subtle" style={{ padding: '4px 10px', minHeight: '36px', fontSize: '12px' }} onClick={() => setMonth(today().slice(0, 7))}>Ke Bulan Ini ({monthLabel(today().slice(0, 7))}) →</button>}{tab !== "laporan" && <button className="button primary" onClick={() => open(tab === "pinjaman" ? "loan" : "payment")}><Plus size={17} /> {tab === "pinjaman" ? "Catat pinjaman" : "Catat iuran"}</button>}</div></div>
         {successMsg && <div role="status" style={{ background: '#e8f6f1', color: '#19553f', border: '1px solid #b7e3cf', padding: '12px 16px', borderRadius: '9px', marginBottom: '15px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}><b>✓</b> {successMsg}</div>}
+        {pendingRestore && (
+          <div role="status" style={{ background: '#fff9e6', color: '#7a5500', border: '1px solid #f0d58a', padding: '12px 16px', borderRadius: '9px', marginBottom: '15px', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+            <div>
+              <strong>⚠️ Cadangan Data Tersedia di Browser:</strong> Terdeteksi riwayat data lokal ({pendingRestore.residents?.length || 0} warga, {pendingRestore.payments?.length || 0} setoran, {pendingRestore.entries?.length || 0} transaksi kas). Ingin memulihkan data Anda kembali ke database server?
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button type="button" className="button primary small" style={{ fontSize: '12px', padding: '4px 10px' }} disabled={restoreBusy} onClick={() => void doRestore(pendingRestore)}>
+                {restoreBusy ? "Memulihkan…" : "Pulihkan ke Database"}
+              </button>
+              <button type="button" className="button subtle small" style={{ fontSize: '12px', padding: '4px 8px' }} onClick={() => setPendingRestore(null)}>
+                Abaikan
+              </button>
+            </div>
+          </div>
+        )}
         {error && !dialog && <div role="alert" className="error-bar">{error} <button onClick={() => void load()}>Coba lagi</button></div>}
         {!data || !result ? <div className="loading">Memuat data rekonsiliasi…</div> : <>
           {tab === "laporan" && <><div className="report-options" role="group" aria-label="Jenis laporan"><button className={reportKind === "ringkas" ? "selected" : ""} onClick={() => setReportKind("ringkas")}>Diagram & saldo kas</button><button className={reportKind === "status" ? "selected" : ""} onClick={() => setReportKind("status")}>Daftar sudah / belum bayar</button><button className={reportKind === "lengkap" ? "selected" : ""} onClick={() => setReportKind("lengkap")}>Laporan lengkap</button><button className={reportKind === "transaksi" ? "selected" : ""} onClick={() => setReportKind("transaksi")}>Semua transaksi kas</button></div><div className="report-actions"><button className="button primary" onClick={downloadReport}><Download size={17} /> Unduh CSV</button><button className="button subtle" onClick={() => window.print()}><Printer size={17} /> Cetak / simpan PDF</button></div>
@@ -534,7 +785,152 @@ export default function HomePage() {
             <MonthlyCashChart data={data} month={month} /><p className="source-note">Data awal: PDF “Spreadsheet tanpa judul (1)”, halaman 1–2. Tanggal transaksi yang tidak dirinci diberi tanggal perkiraan untuk laporan bulanan. Pembayaran Imam (D5) Rp40.000 dicatat melalui DANA pada 11 September 2026.</p>
           </>}
           {tab === "warga" && <section className="panel wide-panel"><div className="panel-heading"><div><h2>Daftar warga</h2><p>{data.residents.length} warga · tarif {rupiah(data.rate)} per bulan</p></div><div className="panel-actions"><button className="button subtle" onClick={csv}><Download size={16} /> Unduh CSV</button><button className="button subtle" onClick={() => open("resident")}><Plus size={16} /> Tambah warga</button></div></div><div className="table-tools"><input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari nama atau blok…" aria-label="Cari warga" /><span>{filtered.length} warga ditampilkan</span></div><div className="table-scroll"><Table><TableHeader><TableRow><TableHead>Warga</TableHead><TableHead>Blok</TableHead><TableHead className="number">Total dibayar</TableHead><TableHead className="number">Uang muka tersisa</TableHead><TableHead>Status {monthName}</TableHead><TableHead className="number">Aksi</TableHead></TableRow></TableHeader><TableBody>{filtered.map(w => <TableRow key={w.id}><TableCell className="person">{w.name}</TableCell><TableCell>{w.block}</TableCell><TableCell className="number">{rupiah(result.residentPaid(w.id))}</TableCell><TableCell className="number">{rupiah(result.residentBlocked(w.id))}</TableCell><TableCell><span className={`status ${result.status(w.id) ? "paid" : "unpaid"}`}>{result.status(w.id) ? "Lunas" : "Belum bayar"}</span></TableCell><TableCell className="number"><button className="table-action delete-btn" title={`Hapus warga ${w.name}`} disabled={busy} onClick={() => void deleteResident(w)}><Trash2 size={13} /> Hapus</button></TableCell></TableRow>)}</TableBody></Table></div>{filtered.length === 0 && <p className="empty">Tidak ada warga yang cocok.</p>}</section>}
-          {tab === "kas" && <><div className="wallet-strip">{channels.map(c => <div key={c.id}><span>{channelLabel(c.id)}</span><strong>{rupiah(result.balances[c.id])}</strong></div>)}</div><div className="kas-toolbar"><div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}><button className="button subtle" onClick={() => open("transfer")}><ArrowLeftRight size={16} /> Pindahkan dana</button><button className="button subtle" onClick={() => open("entry")}><Plus size={16} /> Catat transaksi</button></div>{month !== today().slice(0, 7) && <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#718375', marginLeft: 'auto' }}><span>Posisi kas akhir <b>{monthLabel(month)}</b></span><button type="button" className="text-link" style={{ margin: 0, fontSize: '12px' }} onClick={() => setMonth(today().slice(0, 7))}>Lihat saldo bulan ini →</button></div>}</div><section className="panel wide-panel cash-journal"><div className="panel-heading"><div><h2>Daftar transaksi kas</h2><p>Nomor urut dan tanggal transaksi sampai akhir {monthName}</p></div></div><div className="table-scroll"><Table><TableHeader><TableRow><TableHead>No.</TableHead><TableHead>Tanggal</TableHead><TableHead>Jenis</TableHead><TableHead>Keterangan</TableHead><TableHead>Tempat uang</TableHead><TableHead className="number">Masuk</TableHead><TableHead className="number">Keluar</TableHead></TableRow></TableHeader><TableBody>{transactions.map((t, i) => <TableRow key={t.kind + "-" + t.id}><TableCell>{i + 1}</TableCell><TableCell className="date-cell">{dateLabel(t.date)}</TableCell><TableCell>{t.kind}</TableCell><TableCell className="person">{t.description}</TableCell><TableCell>{t.channel}</TableCell><TableCell className="number">{t.incoming ? rupiah(t.incoming) : "—"}</TableCell><TableCell className="number">{t.outgoing ? rupiah(t.outgoing) : "—"}</TableCell></TableRow>)}</TableBody></Table></div>{transactions.length === 0 && <p className="empty">Belum ada transaksi sampai akhir periode ini.</p>}</section><div className="section-grid kas-grid"><section className="panel"><div className="panel-heading"><div><h2>Transaksi kas</h2><p>Selain iuran warga · sampai {monthName}</p></div></div><div className="transaction-list">{[...result.entries].reverse().map(e => <div className="transaction" key={e.id}><span className={`transaction-icon ${e.kind}`}>{e.kind === "income" ? "+" : "−"}</span><div><strong>{e.description}</strong><small>{dateLabel(e.date)} · {channelLabel(e.channel)}</small></div><div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><b className={e.kind}>{e.kind === "income" ? "+" : "−"} {rupiah(e.amount)}</b><button className="icon-delete-btn" title="Hapus transaksi ini" disabled={busy} onClick={() => void deleteEntry(e)}><Trash2 size={13} /></button></div></div>)}</div></section><section className="panel"><div className="panel-heading"><div><h2>Pembayaran warga</h2><p>{result.payments.length} pembayaran tercatat.</p></div></div><div className="transaction-list">{[...result.payments].reverse().map(p => <div className="transaction" key={p.id}><span className="transaction-icon payment"><Users size={16} /></span><div><strong>{data.residents.find(w => w.id === p.residentId)?.name ?? p.residentId}</strong><small>Mulai {monthLabel(p.startMonth)} · {p.amount / data.rate} bulan · {channelLabel(p.channel)}</small></div><div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><b className="income">+ {rupiah(p.amount)}</b><button className="icon-delete-btn" title="Hapus catatan pembayaran ini" disabled={busy} onClick={() => void deletePayment(p.id)}><Trash2 size={13} /></button></div></div>)}</div></section></div><section className="panel transfer-panel"><div className="panel-heading"><div><h2>Pemindahan dana</h2><p>Perpindahan tempat uang tidak mengubah total kas.</p></div></div><div className="transaction-list">{[...result.transfers].reverse().map(t => <div className="transaction" key={t.id}><span className="transaction-icon payment"><ArrowLeftRight size={16} /></span><div><strong>{channelLabel(t.fromChannel)} → {channelLabel(t.toChannel)}</strong><small>{dateLabel(t.date)}{t.note ? ` · ${t.note}` : ""}</small></div><div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><b>{rupiah(t.amount)}</b><button className="icon-delete-btn" title="Batalkan pemindahan dana ini" disabled={busy} onClick={() => void deleteTransfer(t)}><Trash2 size={13} /></button></div></div>)}</div></section></>}
+          {tab === "kas" && <>
+            <div className="wallet-strip">
+              {channels.map(c => <div key={c.id}><span>{channelLabel(c.id)}</span><strong>{rupiah(result.balances[c.id])}</strong></div>)}
+            </div>
+            <div className="kas-toolbar">
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button className="button subtle" onClick={() => open("transfer")}><ArrowLeftRight size={16} /> Pindahkan dana</button>
+                <button className="button subtle" onClick={() => open("entry")}><Plus size={16} /> Catat transaksi</button>
+              </div>
+              {month !== today().slice(0, 7) && <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#718375', marginLeft: 'auto' }}>
+                <span>Posisi kas akhir <b>{monthLabel(month)}</b></span>
+                <button type="button" className="text-link" style={{ margin: 0, fontSize: '12px' }} onClick={() => setMonth(today().slice(0, 7))}>Lihat saldo bulan ini →</button>
+              </div>}
+            </div>
+            <section className="panel wide-panel cash-journal">
+              <div className="panel-heading">
+                <div>
+                  <h2>Daftar transaksi kas</h2>
+                  <p>Nomor urut dan tanggal transaksi sampai akhir {monthName}</p>
+                </div>
+              </div>
+              <div className="table-scroll">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead style={{ width: '45px' }}>No.</TableHead>
+                      <TableHead>Tanggal</TableHead>
+                      <TableHead>Jenis</TableHead>
+                      <TableHead>Keterangan</TableHead>
+                      <TableHead>Tempat uang</TableHead>
+                      <TableHead className="number">Masuk</TableHead>
+                      <TableHead className="number">Keluar</TableHead>
+                      <TableHead style={{ width: '85px', textAlign: 'center' }}>Aksi</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {transactions.map((t, i) => (
+                      <TableRow key={t.kind + "-" + t.id}>
+                        <TableCell>{i + 1}</TableCell>
+                        <TableCell className="date-cell">{dateLabel(t.date)}</TableCell>
+                        <TableCell>
+                          <span style={{ fontSize: '11px', fontWeight: 600, color: t.kind === "Pengeluaran" ? "#bf4c3d" : t.kind === "Iuran" ? "#1d6c46" : t.kind === "Pemasukan" ? "#20513a" : "#728a76" }}>
+                            {t.kind}
+                          </span>
+                        </TableCell>
+                        <TableCell className="person">{t.description}</TableCell>
+                        <TableCell>{t.channel}</TableCell>
+                        <TableCell className="number">{t.incoming ? rupiah(t.incoming) : "—"}</TableCell>
+                        <TableCell className="number">{t.outgoing ? rupiah(t.outgoing) : "—"}</TableCell>
+                        <TableCell style={{ textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            className="table-action delete-btn"
+                            style={{ padding: '3px 8px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                            title={`Hapus transaksi ${t.description}`}
+                            disabled={busy}
+                            onClick={() => void deleteTransactionRow(t)}
+                          >
+                            <Trash2 size={12} /> Hapus
+                          </button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              {transactions.length === 0 && <p className="empty">Belum ada transaksi sampai akhir periode ini.</p>}
+            </section>
+            <div className="section-grid kas-grid">
+              <section className="panel">
+                <div className="panel-heading">
+                  <div>
+                    <h2>Transaksi kas</h2>
+                    <p>Selain iuran warga · sampai {monthName}</p>
+                  </div>
+                </div>
+                <div className="transaction-list">
+                  {[...result.entries].reverse().map(e => (
+                    <div className="transaction" key={e.id}>
+                      <span className={`transaction-icon ${e.kind}`}>{e.kind === "income" ? "+" : "−"}</span>
+                      <div>
+                        <strong>{e.description}</strong>
+                        <small>{dateLabel(e.date)} · {channelLabel(e.channel)}</small>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <b className={e.kind}>{e.kind === "income" ? "+" : "−"} {rupiah(e.amount)}</b>
+                        <button className="icon-delete-btn" title="Hapus transaksi ini" disabled={busy} onClick={() => void deleteEntry(e)}>
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+              <section className="panel">
+                <div className="panel-heading">
+                  <div>
+                    <h2>Pembayaran warga</h2>
+                    <p>{result.payments.length} pembayaran tercatat.</p>
+                  </div>
+                </div>
+                <div className="transaction-list">
+                  {[...result.payments].reverse().map(p => (
+                    <div className="transaction" key={p.id}>
+                      <span className="transaction-icon payment"><Users size={16} /></span>
+                      <div>
+                        <strong>{data.residents.find(w => w.id === p.residentId)?.name ?? p.residentId}</strong>
+                        <small>Mulai {monthLabel(p.startMonth)} · {p.amount / data.rate} bulan · {channelLabel(p.channel)}</small>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <b className="income">+ {rupiah(p.amount)}</b>
+                        <button className="icon-delete-btn" title="Hapus catatan pembayaran ini" disabled={busy} onClick={() => void deletePayment(p.id)}>
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </div>
+            <section className="panel transfer-panel">
+              <div className="panel-heading">
+                <div>
+                  <h2>Pemindahan dana</h2>
+                  <p>Perpindahan tempat uang tidak mengubah total kas.</p>
+                </div>
+              </div>
+              <div className="transaction-list">
+                {[...result.transfers].reverse().map(t => (
+                  <div className="transaction" key={t.id}>
+                    <span className="transaction-icon payment"><ArrowLeftRight size={16} /></span>
+                    <div>
+                      <strong>{channelLabel(t.fromChannel)} → {channelLabel(t.toChannel)}</strong>
+                      <small>{dateLabel(t.date)}{t.note ? ` · ${t.note}` : ""}</small>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <b>{rupiah(t.amount)}</b>
+                      <button className="icon-delete-btn" title="Batalkan pemindahan dana ini" disabled={busy} onClick={() => void deleteTransfer(t)}>
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </>}
           {tab === "pinjaman" && <><div className="loan-top"><section className="stat-card"><span>Total dipinjam</span><strong>{rupiah(result.loaned)}</strong><small>Akumulasi sampai {monthName}</small></section><section className="stat-card"><span>Sudah dikembalikan</span><strong>{rupiah(result.returned)}</strong><small>Masuk kembali ke tempat uang diterima</small></section><section className="stat-card"><span>Masih dipinjam</span><strong>{rupiah(result.outstanding)}</strong><small>Piutang, belum menjadi saldo kas</small></section></div><section className="panel wide-panel loan-panel"><div className="panel-heading"><div><h2>Daftar pinjaman</h2><p>Catat pengembalian sebagian atau seluruh pinjaman.</p></div><button className="button subtle" onClick={() => open("loan")}><Plus size={16} /> Uang dipinjam</button></div><div className="table-scroll"><Table><TableHeader><TableRow><TableHead>Peminjam</TableHead><TableHead>Tanggal</TableHead><TableHead>Keluar dari</TableHead><TableHead className="number">Dipinjam</TableHead><TableHead className="number">Dikembalikan</TableHead><TableHead className="number">Sisa</TableHead><TableHead>Aksi</TableHead></TableRow></TableHeader><TableBody>{[...result.loans].reverse().map(l => <TableRow key={l.id}><TableCell className="person">{l.borrower}{l.note && <small className="row-note">{l.note}</small>}</TableCell><TableCell>{l.date}</TableCell><TableCell>{channelLabel(l.channel)}</TableCell><TableCell className="number">{rupiah(l.amount)}</TableCell><TableCell className="number">{rupiah(l.amount - result.remaining(l.id))}</TableCell><TableCell className="number"><strong>{rupiah(result.remaining(l.id))}</strong></TableCell><TableCell><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>{result.remaining(l.id) > 0 ? <button className="table-action" onClick={() => { open("repayment"); setForm({ date: today(), amount: String(result.remaining(l.id)), channel: l.channel, loanId: l.id }) }}>Catat kembali</button> : <span className="status paid">Lunas</span>}<button className="table-action delete-btn" title="Hapus pinjaman ini" disabled={busy} onClick={() => void deleteLoan(l)}><Trash2 size={13} /> Hapus</button></div></TableCell></TableRow>)}</TableBody></Table></div>{result.loans.length === 0 && <p className="empty">Belum ada pinjaman tercatat.</p>}</section><section className="panel repayment-panel"><div className="panel-heading"><div><h2>Riwayat pengembalian</h2><p>Pengembalian menambah saldo kas, bukan pemasukan iuran baru.</p></div></div>{[...result.repayments].reverse().map(r => <div className="transaction" key={r.id}><span className="transaction-icon income">+</span><div><strong>{result.loans.find(l => l.id === r.loanId)?.borrower ?? "Peminjam"}</strong><small>{r.date} · {channelLabel(r.channel)}</small></div><b className="income">+ {rupiah(r.amount)}</b></div>)}{result.repayments.length === 0 && <p className="empty">Belum ada pengembalian.</p>}</section></>}
         </>}
       </div>
@@ -559,146 +955,60 @@ export default function HomePage() {
       onOpenChange={open => {
         setShowLogin(open);
         if (!open) {
-          setIsResetMode(false);
-          setResetError("");
           setLoginError("");
         }
       }}
     >
       <DialogContent className="dialog-content">
         <DialogHeader>
-          <DialogTitle>{isResetMode ? "Reset Kata Sandi Pengurus" : "Masuk Pengurus KARIER"}</DialogTitle>
+          <DialogTitle>Masuk Pengurus KARIER</DialogTitle>
         </DialogHeader>
-        {isResetMode ? (
-          <form onSubmit={doResetPassword} className="form-grid">
-            <p className="form-help">
-              Reset kata sandi menggunakan Kunci Pemulihan Server (Master Key). Anda dapat menetapkan sandi baru tanpa perlu mengetahui sandi lama.
+        <form onSubmit={doLogin} className="form-grid">
+          <p className="form-help">
+            Masuk menggunakan akun Gmail atau username pengurus untuk mengelola data kas dan iuran warga.
+          </p>
+          {loginError && (
+            <p className="form-error" role="alert" style={{ background: '#fff2ee', border: '1px solid #f8cdbe', padding: '9px 12px', borderRadius: '8px' }}>
+              {loginError}
             </p>
-            {resetError && (
-              <p className="form-error" role="alert" style={{ background: '#fff2ee', border: '1px solid #f8cdbe', padding: '9px 12px', borderRadius: '8px' }}>
-                {resetError}
-              </p>
-            )}
-            {resetSuccess && (
-              <div role="status" style={{ background: '#e8f6f1', color: '#19553f', border: '1px solid #b7e3cf', padding: '10px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: 600 }}>
-                ✓ {resetSuccess}
-              </div>
-            )}
-            <label>
-              Kunci Pemulihan Server (Master Key)
-              <input
-                required
-                type="password"
-                value={resetForm.resetKey}
-                onChange={e => setResetForm({ ...resetForm, resetKey: e.target.value })}
-                placeholder="Nilai KARIER_ADMIN_PASSWORD dari .env.local"
-              />
-            </label>
-            <div style={{ fontSize: '12px', color: '#68776b', marginTop: '-6px', marginBottom: '2px' }}>
-              Bawaan sistem: <code>adminpassword123456</code> (atau sesuai variabel lingkungan server Anda).
-            </div>
-            <label>
-              Nama Pengurus (Username)
-              <input
-                required
-                value={resetForm.username}
-                onChange={e => setResetForm({ ...resetForm, username: e.target.value })}
-                placeholder="admin"
-              />
-            </label>
-            <label>
-              Kata Sandi Baru (Minimal 6 karakter)
-              <input
-                required
-                type="password"
-                value={resetForm.newPassword}
-                onChange={e => setResetForm({ ...resetForm, newPassword: e.target.value })}
-                placeholder="Masukkan kata sandi baru"
-              />
-            </label>
-            <label>
-              Ulangi Kata Sandi Baru
-              <input
-                required
-                type="password"
-                value={resetForm.confirmPassword}
-                onChange={e => setResetForm({ ...resetForm, confirmPassword: e.target.value })}
-                placeholder="Ketik ulang kata sandi baru"
-              />
-            </label>
-            <div style={{ fontSize: '12px', color: '#57755f', background: '#f0f6ee', padding: '10px 12px', borderRadius: '8px', lineHeight: 1.5 }}>
-              💡 <b>Opsi Terminal:</b> Jalankan <code>npm run auth:reset</code> atau klik ganda <b>RESET_SANDI.cmd</b> di komputer Anda.
-            </div>
-            <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-              <button className="button primary form-submit" style={{ flex: 1 }} disabled={resetBusy}>
-                {resetBusy ? "Mereset…" : "Reset & Masuk"}
-              </button>
-              <button
-                type="button"
-                className="button secondary"
-                onClick={() => {
-                  setIsResetMode(false);
-                  setResetError("");
-                }}
-                style={{ padding: '0 16px' }}
-              >
-                Batal
-              </button>
-            </div>
-          </form>
-        ) : (
-          <form onSubmit={doLogin} className="form-grid">
-            <p className="form-help">
-              Masuk sebagai pengurus untuk mencatat iuran warga, mengelola transaksi buku kas, mencatat pinjaman, atau menghapus data.
-            </p>
-            {loginError && (
-              <p className="form-error" role="alert" style={{ background: '#fff2ee', border: '1px solid #f8cdbe', padding: '9px 12px', borderRadius: '8px' }}>
-                {loginError}
-              </p>
-            )}
-            <label>
-              Nama Pengurus (Username)
-              <input
-                required
-                autoFocus
-                value={loginForm.username}
-                onChange={e => setLoginForm({ ...loginForm, username: e.target.value })}
-                placeholder="admin"
-              />
-            </label>
-            <label>
-              Kata Sandi (Password)
-              <input
-                required
-                type="password"
-                value={loginForm.password}
-                onChange={e => setLoginForm({ ...loginForm, password: e.target.value })}
-                placeholder="Masukkan kata sandi pengurus"
-              />
-            </label>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', marginTop: '-4px' }}>
-              <span style={{ color: '#889a8c' }}>Lupa sandi pengurus?</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsResetMode(true);
-                  setLoginError("");
-                  setResetError("");
-                }}
-                style={{ background: 'none', border: 'none', color: '#1f5f3e', fontWeight: 600, textDecoration: 'underline', cursor: 'pointer', padding: 0 }}
-              >
-                Reset Kata Sandi
-              </button>
-            </div>
-            <div style={{ fontSize: '12px', color: '#57755f', background: '#f0f6ee', padding: '10px 12px', borderRadius: '8px', lineHeight: 1.5 }}>
-              Kredensial bawaan: Pengurus <b>admin</b> &middot; Sandi: <b>adminpassword123456</b>
-              <br /><span style={{ color: '#889a8c' }}>Kata sandi dapat diubah kapan saja melalui tombol <b>Ubah Sandi</b> setelah masuk.</span>
-            </div>
-            <button className="button primary form-submit" disabled={loginBusy}>
+          )}
+          <label>
+            Alamat Email Gmail / Username
+            <input
+              required
+              autoFocus
+              value={loginForm.username}
+              onChange={e => setLoginForm({ ...loginForm, username: e.target.value })}
+              placeholder="superadmin@gmail.com atau admin_tetap"
+            />
+          </label>
+          <label>
+            Kata Sandi (Password)
+            <input
+              required
+              type="password"
+              value={loginForm.password}
+              onChange={e => setLoginForm({ ...loginForm, password: e.target.value })}
+              placeholder="Masukkan kata sandi"
+            />
+          </label>
+          <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+            <button className="button primary form-submit" style={{ flex: 1 }} disabled={loginBusy}>
               {loginBusy ? "Memeriksa…" : "Masuk"}
             </button>
-          </form>
-        )}
+            <button
+              type="button"
+              className="button secondary"
+              onClick={() => setShowLogin(false)}
+              style={{ padding: '0 16px' }}
+            >
+              Batal
+            </button>
+          </div>
+          <div style={{ marginTop: '8px', padding: '10px 12px', background: '#f4fbf6', border: '1px solid #d4eedb', borderRadius: '8px', fontSize: '11px', color: '#3d6349', lineHeight: 1.5 }}>
+            <strong>🛡️ Pengamanan Akun:</strong> Reset kata sandi tidak disediakan secara publik di web demi mencegah pihak luar mengambil alih kas RT. Jika lupa kata sandi, silakan hubungi <strong>Super Admin RT</strong> atau jalankan launcher <code>RESET_SANDI.cmd</code> di komputer pengurus.
+          </div>
+        </form>
       </DialogContent>
     </Dialog>
     <Dialog open={showChangePassword} onOpenChange={setShowChangePassword}>
@@ -730,16 +1040,6 @@ export default function HomePage() {
             />
           </label>
           <label>
-            Kata Sandi Saat Ini
-            <input
-              required
-              type="password"
-              value={changePwForm.currentPassword}
-              onChange={e => setChangePwForm({ ...changePwForm, currentPassword: e.target.value })}
-              placeholder="Masukkan kata sandi lama"
-            />
-          </label>
-          <label>
             Kata Sandi Baru (Minimal 6 karakter)
             <input
               required
@@ -762,9 +1062,197 @@ export default function HomePage() {
             />
           </label>
           <button className="button primary form-submit" disabled={changePwBusy}>
-            {changePwBusy ? "Menyimpan perubahan…" : "Simpan Kata Sandi Baru"}
+            {changePwBusy ? "Menyimpan…" : "Simpan Kata Sandi"}
           </button>
         </form>
+      </DialogContent>
+    </Dialog>
+    <Dialog open={showBackupModal} onOpenChange={setShowBackupModal}>
+      <DialogContent className="dialog-content">
+        <DialogHeader>
+          <DialogTitle>Cadangan & Pemulihan Data Permanen</DialogTitle>
+        </DialogHeader>
+        <div className="form-grid">
+          <p className="form-help">
+            Sistem KARIER otomatis menyimpan seluruh data warga, iuran, transaksi kas, dan kata sandi ke database, berkas snapshot lokal, serta memori browser. Anda juga dapat mengunduh atau memulihkan berkas cadangan kapan saja.
+          </p>
+          {restoreError && (
+            <p className="form-error" role="alert" style={{ background: '#fff2ee', border: '1px solid #f8cdbe', padding: '9px 12px', borderRadius: '8px' }}>
+              {restoreError}
+            </p>
+          )}
+          <div style={{ background: '#f5faf6', border: '1px solid #c8e6d0', padding: '12px 14px', borderRadius: '8px', fontSize: '13px' }}>
+            <div style={{ fontWeight: 600, color: '#1a593e', marginBottom: '4px' }}>✓ Status Penyimpanan Permanen: Aktif</div>
+            <div style={{ color: '#446655' }}>
+              {data ? `${data.residents.length} Warga · ${data.payments.length} Setoran Iuran · ${data.entries.length} Transaksi Kas` : 'Memuat data...'}
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '6px' }}>
+            <button
+              type="button"
+              className="button primary"
+              style={{ justifyContent: 'center', minHeight: '38px', gap: '8px' }}
+              onClick={downloadBackupJSON}
+            >
+              <Download size={16} /> Unduh Berkas Cadangan (.JSON)
+            </button>
+            <label className="button outline" style={{ justifyContent: 'center', minHeight: '38px', cursor: 'pointer', margin: 0, gap: '8px', display: 'flex', alignItems: 'center' }}>
+              <Upload size={16} /> {restoreBusy ? "Memulihkan…" : "Pulihkan dari Berkas Cadangan (.JSON)"}
+              <input
+                type="file"
+                accept=".json"
+                style={{ display: 'none' }}
+                onChange={handleFileRestore}
+                disabled={restoreBusy}
+              />
+            </label>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+    <Dialog open={showUsersModal} onOpenChange={setShowUsersModal}>
+      <DialogContent className="dialog-content" style={{ maxWidth: '680px' }}>
+        <DialogHeader>
+          <DialogTitle>Kelola Akun Pengurus & Pengikut (Gmail)</DialogTitle>
+        </DialogHeader>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ fontSize: '13px', color: '#1f5f3e', background: '#eaf4eb', border: '1px solid #cce4cf', padding: '12px 14px', borderRadius: '10px', lineHeight: 1.5 }}>
+            <strong>👑 Hak Akses Super Admin:</strong>
+            <div style={{ marginTop: '4px', color: '#386348' }}>
+              Hanya Super Admin (<b>superadmin@gmail.com</b>) yang dapat mendaftarkan atau menghapus akun pengurus lain. Seluruh pengikut yang terdaftar dapat login dan mencatat serta menyimpan data keuangan RT ke database.
+            </div>
+          </div>
+
+          {usersError && (
+            <p className="form-error" role="alert" style={{ background: '#fff2ee', border: '1px solid #f8cdbe', padding: '9px 12px', borderRadius: '8px', margin: 0 }}>
+              {usersError}
+            </p>
+          )}
+          {usersSuccess && (
+            <div role="status" style={{ background: '#e8f6f1', color: '#19553f', border: '1px solid #b7e3cf', padding: '9px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: 600 }}>
+              ✓ {usersSuccess}
+            </div>
+          )}
+
+          {/* Form Tambah Pengikut Baru */}
+          <form onSubmit={handleAddUser} style={{ background: '#f8faf6', border: '1px solid #dce8db', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ fontWeight: 700, fontSize: '14px', color: '#1d4d38' }}>
+              + Daftarkan Akun Gmail Pengurus Baru (Pengikut)
+            </div>
+            <div className="form-pair">
+              <label style={{ fontSize: '12px', color: '#4d6954', fontWeight: 600, display: 'grid', gap: '4px' }}>
+                Alamat Email Gmail
+                <input
+                  required
+                  type="email"
+                  value={newUserForm.email}
+                  onChange={e => setNewUserForm({ ...newUserForm, email: e.target.value })}
+                  placeholder="contoh: bendahara.rt@gmail.com"
+                  style={{ border: '1px solid #d4e4d2', borderRadius: '8px', padding: '8px 10px', fontSize: '13px' }}
+                />
+              </label>
+              <label style={{ fontSize: '12px', color: '#4d6954', fontWeight: 600, display: 'grid', gap: '4px' }}>
+                Nama Pengurus / Jabatan
+                <input
+                  required
+                  value={newUserForm.name}
+                  onChange={e => setNewUserForm({ ...newUserForm, name: e.target.value })}
+                  placeholder="contoh: Budi (Bendahara)"
+                  style={{ border: '1px solid #d4e4d2', borderRadius: '8px', padding: '8px 10px', fontSize: '13px' }}
+                />
+              </label>
+            </div>
+            <label style={{ fontSize: '12px', color: '#4d6954', fontWeight: 600, display: 'grid', gap: '4px' }}>
+              Kata Sandi Awal (Minimal 6 karakter)
+              <input
+                required
+                type="password"
+                minLength={6}
+                value={newUserForm.password}
+                onChange={e => setNewUserForm({ ...newUserForm, password: e.target.value })}
+                placeholder="Kata sandi untuk pengurus masuk"
+                style={{ border: '1px solid #d4e4d2', borderRadius: '8px', padding: '8px 10px', fontSize: '13px' }}
+              />
+            </label>
+            <button
+              className="button primary"
+              type="submit"
+              disabled={newUserBusy}
+              style={{ minHeight: '36px', fontSize: '13px', marginTop: '4px' }}
+            >
+              {newUserBusy ? "Mendaftarkan…" : "Daftarkan Pengurus"}
+            </button>
+          </form>
+
+          {/* Tabel Pengurus Terdaftar */}
+          <div>
+            <div style={{ fontWeight: 700, fontSize: '14px', color: '#254e3a', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Daftar Akun Pengurus Terdaftar ({usersList.length})</span>
+              <button
+                type="button"
+                onClick={loadUsers}
+                disabled={usersBusy}
+                style={{ background: 'none', border: 'none', color: '#2b7051', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}
+              >
+                {usersBusy ? "Memuat…" : "Segarkan"}
+              </button>
+            </div>
+            <div className="table-scroll" style={{ border: '1px solid #dce8db', borderRadius: '10px' }}>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nama Pengurus</TableHead>
+                    <TableHead>Email Gmail</TableHead>
+                    <TableHead>Peran</TableHead>
+                    <TableHead style={{ textAlign: 'center' }}>Aksi</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {usersList.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} style={{ textAlign: 'center', color: '#7a9181', padding: '20px' }}>
+                        {usersBusy ? "Memuat data akun…" : "Belum ada akun pengikut."}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    usersList.map(u => (
+                      <TableRow key={u.id}>
+                        <TableCell style={{ fontWeight: 600, color: '#1e4836' }}>{u.name}</TableCell>
+                        <TableCell style={{ color: '#446550', fontSize: '13px' }}>{u.email}</TableCell>
+                        <TableCell>
+                          {u.role === 'superadmin' ? (
+                            <span style={{ background: '#fef3dc', color: '#8f6114', border: '1px solid #edd197', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 700 }}>
+                              👑 Super Admin
+                            </span>
+                          ) : (
+                            <span style={{ background: '#e9f6ef', color: '#1e664c', border: '1px solid #bce4d2', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 600 }}>
+                              Pengikut
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell style={{ textAlign: 'center' }}>
+                          {u.role === 'superadmin' ? (
+                            <span style={{ fontSize: '11px', color: '#889a8c' }}>Utama</span>
+                          ) : (
+                            <button
+                              type="button"
+                              className="table-action delete-btn"
+                              style={{ padding: '3px 8px', fontSize: '11px' }}
+                              onClick={() => handleDeleteUser(u.email, u.name)}
+                              title="Hapus akun pengikut"
+                            >
+                              <Trash2 size={12} /> Hapus
+                            </button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   </div>;

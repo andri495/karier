@@ -1,6 +1,8 @@
 import pg from 'pg';
 import { PGlite } from '@electric-sql/pglite';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile, readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { pbkdf2Sync, randomBytes } from 'node:crypto';
 
 const connectionString = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
@@ -9,7 +11,7 @@ let client;
 if (connectionString) {
   client = new pg.Client({ connectionString, connectionTimeoutMillis: 10000 });
 } else {
-  const pgliteDir = new URL('../database/pglite_db', import.meta.url).pathname;
+  const pgliteDir = fileURLToPath(new URL('../database/pglite_db', import.meta.url));
   await mkdir(pgliteDir, { recursive: true });
   const db = new PGlite(pgliteDir);
   client = {
@@ -56,11 +58,37 @@ try {
     [targetUsername, hash, salt, now]
   );
 
+  // Simpan permanen ke database/admin_auth.json
+  const authFilePath = fileURLToPath(new URL('../database/admin_auth.json', import.meta.url));
+  await writeFile(
+    authFilePath,
+    JSON.stringify({
+      username: targetUsername,
+      password_hash: hash,
+      salt,
+      updated_at: now,
+      plain_password: targetPassword,
+    }, null, 2),
+    'utf8'
+  );
+
+  // Sinkronisasi ke .env.local jika ada
+  const envFilePath = fileURLToPath(new URL('../.env.local', import.meta.url));
+  if (existsSync(envFilePath)) {
+    try {
+      let envContent = await readFile(envFilePath, 'utf8');
+      envContent = envContent.replace(/^KARIER_ADMIN_USER=.*$/m, `KARIER_ADMIN_USER=${targetUsername}`);
+      envContent = envContent.replace(/^KARIER_ADMIN_PASSWORD=.*$/m, `KARIER_ADMIN_PASSWORD=${targetPassword}`);
+      await writeFile(envFilePath, envContent, 'utf8');
+    } catch {}
+  }
+
   console.log('\n========================================');
-  console.log('✓ Kata sandi pengurus berhasil direset!');
+  console.log('✓ Kata sandi pengurus berhasil disimpan permanen!');
   console.log('========================================');
   console.log(`Nama Pengurus (Username) : ${targetUsername}`);
   console.log(`Kata Sandi Baru (Password) : ${targetPassword}`);
+  console.log('Tersimpan di : Database, database/admin_auth.json & .env.local');
   console.log('========================================\n');
 } catch (e) {
   console.error('Gagal mereset kata sandi:', e.message);

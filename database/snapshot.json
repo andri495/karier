@@ -1,47 +1,23 @@
 {
   "transfers": [
     {
-      "id": "673969ba-9feb-42cd-9f53-b3f201a0d21a",
-      "amount": 50000,
-      "date": "2026-10-02",
-      "from_channel": "other",
-      "to_channel": "cash",
-      "note": ""
-    },
-    {
       "id": "correction-other-wallet-275000-20260930",
       "amount": 275000,
       "date": "2026-09-30",
       "from_channel": "cash",
       "to_channel": "other",
       "note": "Penempatan kas pada dompet digital lainnya"
+    },
+    {
+      "id": "673969ba-9feb-42cd-9f53-b3f201a0d21a",
+      "amount": 50000,
+      "date": "2026-10-02",
+      "from_channel": "other",
+      "to_channel": "cash",
+      "note": ""
     }
   ],
   "cash_entries": [
-    {
-      "id": "92409ffb-4920-493b-8802-96b8c9e69edf",
-      "kind": "expense",
-      "amount": 17500,
-      "date": "2026-09-30",
-      "description": "Beli Gula Gunung Madu 1Kg (Pos Jaga)",
-      "channel": "cash"
-    },
-    {
-      "id": "95b25191-fa6a-4bee-a242-adef0faa540b",
-      "kind": "expense",
-      "amount": 24000,
-      "date": "2026-10-02",
-      "description": "Beli kopi Badak 400 gr (pos jaga)",
-      "channel": "cash"
-    },
-    {
-      "id": "c4eb7695-e19f-4102-b166-f6c1bcaf8094",
-      "kind": "expense",
-      "amount": 36000,
-      "date": "2026-09-30",
-      "description": "beli kopi BADAK 600 gr",
-      "channel": "cash"
-    },
     {
       "id": "seed-a1",
       "kind": "expense",
@@ -137,20 +113,57 @@
       "date": "2026-09-10",
       "description": "Kopi, 1 kilogram · pos jaga",
       "channel": "cash"
+    },
+    {
+      "id": "92409ffb-4920-493b-8802-96b8c9e69edf",
+      "kind": "expense",
+      "amount": 17500,
+      "date": "2026-09-30",
+      "description": "Beli Gula Gunung Madu 1Kg (Pos Jaga)",
+      "channel": "cash"
+    },
+    {
+      "id": "c4eb7695-e19f-4102-b166-f6c1bcaf8094",
+      "kind": "expense",
+      "amount": 36000,
+      "date": "2026-09-30",
+      "description": "beli kopi BADAK 600 gr",
+      "channel": "cash"
+    },
+    {
+      "id": "95b25191-fa6a-4bee-a242-adef0faa540b",
+      "kind": "expense",
+      "amount": 24000,
+      "date": "2026-10-02",
+      "description": "Beli kopi Badak 400 gr (pos jaga)",
+      "channel": "cash"
+    },
+    {
+      "id": "07d9d9b2-1ee1-4cb9-8019-102c21cb9ee7",
+      "kind": "expense",
+      "amount": 17,
+      "date": "2026-10-29",
+      "description": "gelas 6 cup",
+      "channel": "cash"
+    },
+    {
+      "id": "8317f03e-c659-430c-8dda-a9be94b51539",
+      "kind": "income",
+      "amount": 10000,
+      "date": "2026-10-29",
+      "description": "Uji coba transaksi hapus",
+      "channel": "cash"
+    },
+    {
+      "id": "dc3780a5-e970-4cfd-8d1f-fbbc44778ebb",
+      "kind": "expense",
+      "amount": 20000,
+      "date": "2026-10-29",
+      "description": "galon",
+      "channel": "DANA"
     }
   ],
-  "repayments": [],
-  "loans": [],
   "payments": [
-    {
-      "id": "976a780c-6b7e-48b9-9f59-feaa16618025",
-      "resident_id": "C4",
-      "amount": 20000,
-      "paid_date": "2026-09-15",
-      "start_month": "2026-09",
-      "note": "",
-      "channel": "DANA"
-    },
     {
       "id": "seed-B10",
       "resident_id": "B10",
@@ -260,15 +273,6 @@
       "channel": "cash"
     },
     {
-      "id": "seed-D5",
-      "resident_id": "D5",
-      "amount": 40000,
-      "paid_date": "2026-09-11",
-      "start_month": "2026-09",
-      "note": "Imam (D5) setor melalui DANA pada 11 September 2026",
-      "channel": "DANA"
-    },
-    {
       "id": "seed-D6",
       "resident_id": "D6",
       "amount": 20000,
@@ -366,6 +370,24 @@
       "start_month": "2026-09",
       "note": "Saldo awal dari PDF; tanggal tidak dirinci, ditetapkan 10 September 2026",
       "channel": "cash"
+    },
+    {
+      "id": "seed-D5",
+      "resident_id": "D5",
+      "amount": 40000,
+      "paid_date": "2026-09-11",
+      "start_month": "2026-09",
+      "note": "Imam (D5) setor melalui DANA pada 11 September 2026",
+      "channel": "DANA"
+    },
+    {
+      "id": "976a780c-6b7e-48b9-9f59-feaa16618025",
+      "resident_id": "C4",
+      "amount": 20000,
+      "paid_date": "2026-09-15",
+      "start_month": "2026-09",
+      "note": "",
+      "channel": "DANA"
     }
   ],
   "residents": [
@@ -564,5 +586,7 @@
       "name": "Hendra",
       "block": "E9"
     }
-  ]
+  ],
+  "loans": [],
+  "repayments": []
 }

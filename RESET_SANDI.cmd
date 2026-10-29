@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal enabledelayedexpansion
 cd /d "%~dp0"
 where node >nul 2>nul
 if errorlevel 1 goto no_node
@@ -11,15 +11,29 @@ if not exist .env.local (
  exit /b
 )
 echo ========================================================
-echo  KARIER - Reset Kata Sandi Pengurus
+echo  KARIER - Ubah Kata Sandi Pengurus
 echo ========================================================
 echo.
-echo Mereset kata sandi pengurus ke konfigurasi .env.local...
+echo Masukkan kata sandi baru yang diinginkan.
+echo (Tekan Enter langsung jika ingin menggunakan kata sandi bawaan .env.local)
 echo.
-call npm run auth:reset
+set "INPUT_PW="
+set /p INPUT_PW="Kata Sandi Baru: "
+
+if "!INPUT_PW!"=="" (
+  echo.
+  echo Mereset ke kata sandi bawaan .env.local...
+  call node --env-file=.env.local scripts/reset-password.mjs
+) else (
+  echo.
+  echo Menyimpan kata sandi baru ke database...
+  call node --env-file=.env.local scripts/reset-password.mjs "!INPUT_PW!"
+)
 if errorlevel 1 goto failed
 echo.
-echo Kata sandi berhasil direset!
+echo ========================================================
+echo Kata sandi berhasil disimpan dan langsung aktif!
+echo ========================================================
 pause
 exit /b
 
@@ -29,5 +43,6 @@ pause
 exit /b
 
 :failed
-echo Proses reset gagal. Periksa konfigurasi database di .env.local.
+echo.
+echo Proses penyimpanan gagal. Periksa koneksi database di .env.local.
 pause

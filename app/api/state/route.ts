@@ -1,5 +1,7 @@
 import { authorize } from "@/lib/auth";
 import { getDB, withTransaction, type Database } from "@/lib/database";
+import fs from "node:fs";
+import path from "node:path";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,6 +45,38 @@ function sameOrigin(req: Request) {
     return actual.host === host;
   } catch {
     return true;
+  }
+}
+
+async function syncSnapshotToFile(db?: Database) {
+  try {
+    const database = db || getDB();
+    const [residents, payments, entries, loans, repayments, transfers] = await Promise.all([
+      database.prepare("SELECT id, name, block FROM residents ORDER BY block, id").all(),
+      database.prepare("SELECT id, resident_id, amount, paid_date, start_month, note, channel FROM payments ORDER BY paid_date, id").all(),
+      database.prepare("SELECT id, kind, amount, date, description, channel FROM cash_entries ORDER BY date, id").all(),
+      database.prepare("SELECT id, borrower, amount, date, channel, note FROM loans ORDER BY date, id").all(),
+      database.prepare("SELECT id, loan_id, amount, date, channel FROM repayments ORDER BY date, id").all(),
+      database.prepare("SELECT id, amount, date, from_channel, to_channel, note FROM transfers ORDER BY date, id").all(),
+    ]);
+
+    const snapshotData = {
+      transfers: transfers.results,
+      cash_entries: entries.results,
+      payments: payments.results,
+      residents: residents.results,
+      loans: loans.results,
+      repayments: repayments.results,
+    };
+
+    const snapshotPath = path.resolve(process.cwd(), 'database/snapshot.json');
+    const dir = path.dirname(snapshotPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(snapshotPath, JSON.stringify(snapshotData, null, 2), 'utf8');
+  } catch (err) {
+    console.warn('syncSnapshotToFile notice (filesystem might be read-only):', err);
   }
 }
 
@@ -114,9 +148,65 @@ async function post(req: Request) {
       const position=await snapshot(db,date);
       if(amount>position.balances[from])return problem(`Saldo ${channelLabel(from)} tidak mencukupi untuk pemindahan. Saldo saat ini: Rp${(position.balances[from]||0).toLocaleString("id-ID")}.`);
       await db.prepare("INSERT INTO transfers (id,amount,date,from_channel,to_channel,note) VALUES (?,?,?,?,?,?)").bind(crypto.randomUUID(),amount,date,from,to,String(input.note||"").trim().slice(0,180)).run();
+    } else if(kind==="restore") {
+      const backup = input.data as Record<string, Record<string, unknown>[]>;
+      if(!backup) return problem("Data cadangan tidak valid.");
+
+      await db.prepare("DELETE FROM repayments").run();
+      await db.prepare("DELETE FROM loans").run();
+      await db.prepare("DELETE FROM transfers").run();
+      await db.prepare("DELETE FROM cash_entries").run();
+      await db.prepare("DELETE FROM payments").run();
+      await db.prepare("DELETE FROM residents").run();
+
+      if(Array.isArray(backup.residents)) {
+        for(const r of backup.residents) {
+          await db.prepare("INSERT INTO residents (id,name,block) VALUES (?,?,?)")
+            .bind(String(r.id), String(r.name), String(r.block)).run();
+        }
+      }
+      if(Array.isArray(backup.payments)) {
+        for(const p of backup.payments) {
+          const resId = String(p.resident_id || p.residentId || "");
+          const pDate = String(p.paid_date || p.paidDate || "");
+          const sMonth = String(p.start_month || p.startMonth || "");
+          await db.prepare("INSERT INTO payments (id,resident_id,amount,paid_date,start_month,note,channel) VALUES (?,?,?,?,?,?,?)")
+            .bind(String(p.id || crypto.randomUUID()), resId, Number(p.amount), pDate, sMonth, String(p.note || "").slice(0, 180), String(p.channel || "cash")).run();
+        }
+      }
+      const allEntries = backup.entries || backup.cash_entries || [];
+      if(Array.isArray(allEntries)) {
+        for(const e of allEntries) {
+          await db.prepare("INSERT INTO cash_entries (id,kind,amount,date,description,channel) VALUES (?,?,?,?,?,?)")
+            .bind(String(e.id || crypto.randomUUID()), String(e.kind || "income"), Number(e.amount), String(e.date), String(e.description || "").slice(0, 180), String(e.channel || "cash")).run();
+        }
+      }
+      if(Array.isArray(backup.loans)) {
+        for(const l of backup.loans) {
+          await db.prepare("INSERT INTO loans (id,borrower,amount,date,channel,note) VALUES (?,?,?,?,?,?)")
+            .bind(String(l.id || crypto.randomUUID()), String(l.borrower), Number(l.amount), String(l.date), String(l.channel || "cash"), String(l.note || "").slice(0, 180)).run();
+        }
+      }
+      if(Array.isArray(backup.repayments)) {
+        for(const r of backup.repayments) {
+          await db.prepare("INSERT INTO repayments (id,loan_id,amount,date,channel) VALUES (?,?,?,?,?)")
+            .bind(String(r.id || crypto.randomUUID()), String(r.loan_id || r.loanId || ""), Number(r.amount), String(r.date), String(r.channel || "cash")).run();
+        }
+      }
+      if(Array.isArray(backup.transfers)) {
+        for(const t of backup.transfers) {
+          await db.prepare("INSERT INTO transfers (id,amount,date,from_channel,to_channel,note) VALUES (?,?,?,?,?,?)")
+            .bind(String(t.id || crypto.randomUUID()), Number(t.amount), String(t.date), String(t.from_channel || t.fromChannel || "cash"), String(t.to_channel || t.toChannel || "cash"), String(t.note || "").slice(0, 180)).run();
+        }
+      }
+
+      await syncSnapshotToFile(db);
+      return Response.json({ ok: true, restored: true });
     } else return problem("Jenis data tidak dikenali.");
     const invalid=await timelineProblem();
     if(invalid)return problem(invalid);
+    // Simpan otomatis ke file snapshot permanen
+    await syncSnapshotToFile(db);
     return Response.json({ok:true});
   } catch(e) { console.error(e);return problem("Data belum dapat disimpan. Silakan coba lagi.",503); }
 }
@@ -140,9 +230,13 @@ async function remove(req:Request) {
     } else if(kind==="loan") {
       await db.prepare("DELETE FROM repayments WHERE loan_id=?").bind(id).run();
       await db.prepare("DELETE FROM loans WHERE id=?").bind(id).run();
+    } else if(kind==="repayment") {
+      await db.prepare("DELETE FROM repayments WHERE id=?").bind(id).run();
     } else return problem("Jenis data tidak dikenali.");
     const invalid=await timelineProblem();
     if(invalid)return problem(invalid);
+    // Simpan otomatis ke file snapshot permanen setelah penghapusan
+    await syncSnapshotToFile(db);
     return Response.json({ok:true});
   } catch(e) { console.error(e);return problem("Data belum dapat dihapus.",503); }
 }

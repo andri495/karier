@@ -68,6 +68,16 @@ CREATE TABLE IF NOT EXISTS admin_auth (
   salt TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS app_users (
+  id TEXT PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'admin',
+  password_hash TEXT NOT NULL,
+  salt TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
 `;
 
 const TABLES = ['residents', 'payments', 'cash_entries', 'loans', 'repayments', 'transfers'] as const;
@@ -139,6 +149,30 @@ async function getPGlite(): Promise<PGlite> {
             }
           }
         }
+      }
+
+      // Pastikan akun pengurus terisi dari file permanen admin_auth.json jika tabel kosong
+      try {
+        const authCheck = await db.query<{ count: string }>(
+          "SELECT count(*) as count FROM information_schema.tables WHERE table_name = 'admin_auth'"
+        );
+        if (Number(authCheck.rows[0]?.count) > 0) {
+          const rowCount = await db.query<{ count: string }>("SELECT count(*) as count FROM admin_auth");
+          if (Number(rowCount.rows[0]?.count) === 0) {
+            const authPath = path.resolve(process.cwd(), 'database/admin_auth.json');
+            if (fs.existsSync(authPath)) {
+              const authData = JSON.parse(fs.readFileSync(authPath, 'utf8'));
+              if (authData?.username && authData?.password_hash && authData?.salt) {
+                await db.query(
+                  'INSERT INTO admin_auth (username, password_hash, salt, updated_at) VALUES ($1, $2, $3, $4)',
+                  [authData.username, authData.password_hash, authData.salt, authData.updated_at || new Date().toISOString()]
+                );
+              }
+            }
+          }
+        }
+      } catch (authErr) {
+        console.warn('Could not restore saved admin_auth in PGlite:', authErr);
       }
     } catch (e) {
       console.error('PGlite initialization error:', e);

@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server';
 import {
+  authenticateUser,
   changePassword,
   createSessionToken,
+  EMAIL_COOKIE,
   getSessionFromRequest,
   resetPasswordWithKey,
+  ROLE_COOKIE,
   SESSION_COOKIE,
+  SUPERADMIN_EMAIL,
   USER_COOKIE,
-  verifyCredentials,
 } from '@/lib/auth';
 
 export const runtime = 'nodejs';
@@ -17,6 +20,8 @@ export async function GET(req: Request) {
   return NextResponse.json({
     authenticated: session.authenticated,
     user: session.username || null,
+    email: session.email || null,
+    role: session.role || 'admin',
   });
 }
 
@@ -25,6 +30,7 @@ export async function POST(req: Request) {
     const body = (await req.json()) as {
       action?: string;
       username?: string;
+      email?: string;
       password?: string;
       currentPassword?: string;
       newPassword?: string;
@@ -33,42 +39,10 @@ export async function POST(req: Request) {
     };
 
     if (body.action === 'reset-password') {
-      const resetKey = body.resetKey || '';
-      const newPassword = body.newPassword || '';
-      const newUsername = body.newUsername;
-      const res = await resetPasswordWithKey(resetKey, newPassword, newUsername);
-      if (!res.success) {
-        return NextResponse.json({ error: res.error || 'Gagal mereset kata sandi.' }, { status: 400 });
-      }
-
-      const response = NextResponse.json({
-        success: true,
-        message: 'Kata sandi pengurus berhasil direset!',
-        user: res.username,
-      });
-
-      if (res.username) {
-        const token = createSessionToken(res.username);
-        response.cookies.set(SESSION_COOKIE, token, {
-          path: '/',
-          httpOnly: true,
-          sameSite: 'lax',
-          maxAge: 60 * 60 * 24 * 30,
-        });
-        response.cookies.set(USER_COOKIE, res.username, {
-          path: '/',
-          httpOnly: false,
-          sameSite: 'lax',
-          maxAge: 60 * 60 * 24 * 30,
-        });
-        response.cookies.set('karier_auth', '1', {
-          path: '/',
-          httpOnly: false,
-          sameSite: 'lax',
-          maxAge: 60 * 60 * 24 * 30,
-        });
-      }
-      return response;
+      return NextResponse.json(
+        { error: 'Reset sandi langsung melalui web publik dinonaktifkan demi keamanan. Silakan gunakan perintah konsol RESET_SANDI.cmd di komputer server.' },
+        { status: 403 }
+      );
     }
 
     if (body.action === 'change-password') {
@@ -80,21 +54,39 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: res.error || 'Gagal mengubah kata sandi.' }, { status: 400 });
       }
 
+      const isSuper = (res.username && res.username.toLowerCase() === SUPERADMIN_EMAIL.toLowerCase()) || res.username === 'Super Admin';
+      const role = isSuper ? 'superadmin' : 'admin';
+      const email = res.username?.includes('@') ? res.username : SUPERADMIN_EMAIL;
+
       const response = NextResponse.json({
         success: true,
         message: 'Kata sandi berhasil diubah!',
         user: res.username,
+        email,
+        role,
       });
 
       if (res.username) {
-        const token = createSessionToken(res.username);
+        const token = createSessionToken(res.username, role, email);
         response.cookies.set(SESSION_COOKIE, token, {
           path: '/',
           httpOnly: true,
           sameSite: 'lax',
-          maxAge: 60 * 60 * 24 * 30, // 30 hari
+          maxAge: 60 * 60 * 24 * 30,
         });
         response.cookies.set(USER_COOKIE, res.username, {
+          path: '/',
+          httpOnly: false,
+          sameSite: 'lax',
+          maxAge: 60 * 60 * 24 * 30,
+        });
+        response.cookies.set(EMAIL_COOKIE, email, {
+          path: '/',
+          httpOnly: false,
+          sameSite: 'lax',
+          maxAge: 60 * 60 * 24 * 30,
+        });
+        response.cookies.set(ROLE_COOKIE, role, {
           path: '/',
           httpOnly: false,
           sameSite: 'lax',
@@ -104,28 +96,47 @@ export async function POST(req: Request) {
       return response;
     }
 
-    const username = body.username?.trim() || '';
+    const identifier = (body.email || body.username || '').trim();
     const password = body.password || '';
 
-    const isValid = await verifyCredentials(username, password);
-    if (!isValid) {
+    const user = await authenticateUser(identifier, password);
+    if (!user) {
       return NextResponse.json(
-        { error: 'Nama pengguna atau kata sandi pengurus salah.' },
+        { error: 'Email Gmail atau kata sandi pengurus salah.' },
         { status: 401 }
       );
     }
 
-    const token = createSessionToken(username);
-    const res = NextResponse.json({ success: true, user: username });
+    const token = createSessionToken(user.name, user.role, user.email);
+    const res = NextResponse.json({
+      success: true,
+      user: user.name,
+      email: user.email,
+      role: user.role,
+    });
 
     res.cookies.set(SESSION_COOKIE, token, {
       path: '/',
       httpOnly: true,
       sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 30, // 30 hari
+      maxAge: 60 * 60 * 24 * 30,
     });
 
-    res.cookies.set(USER_COOKIE, username, {
+    res.cookies.set(USER_COOKIE, user.name, {
+      path: '/',
+      httpOnly: false,
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 30,
+    });
+
+    res.cookies.set(EMAIL_COOKIE, user.email, {
+      path: '/',
+      httpOnly: false,
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 30,
+    });
+
+    res.cookies.set(ROLE_COOKIE, user.role, {
       path: '/',
       httpOnly: false,
       sameSite: 'lax',
@@ -163,14 +174,20 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: res.error || 'Gagal mengubah kata sandi.' }, { status: 400 });
     }
 
+    const isSuper = (res.username && res.username.toLowerCase() === SUPERADMIN_EMAIL.toLowerCase()) || res.username === 'Super Admin';
+    const role = isSuper ? 'superadmin' : 'admin';
+    const email = res.username?.includes('@') ? res.username : SUPERADMIN_EMAIL;
+
     const response = NextResponse.json({
       success: true,
       message: 'Kata sandi berhasil diubah!',
       user: res.username,
+      email,
+      role,
     });
 
     if (res.username) {
-      const token = createSessionToken(res.username);
+      const token = createSessionToken(res.username, role, email);
       response.cookies.set(SESSION_COOKIE, token, {
         path: '/',
         httpOnly: true,
@@ -178,6 +195,24 @@ export async function PUT(req: Request) {
         maxAge: 60 * 60 * 24 * 30,
       });
       response.cookies.set(USER_COOKIE, res.username, {
+        path: '/',
+        httpOnly: false,
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 30,
+      });
+      response.cookies.set(EMAIL_COOKIE, email, {
+        path: '/',
+        httpOnly: false,
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 30,
+      });
+      response.cookies.set(ROLE_COOKIE, role, {
+        path: '/',
+        httpOnly: false,
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 30,
+      });
+      response.cookies.set('karier_auth', '1', {
         path: '/',
         httpOnly: false,
         sameSite: 'lax',
@@ -194,17 +229,10 @@ export async function PUT(req: Request) {
 
 export async function DELETE() {
   const res = NextResponse.json({ success: true });
-  res.cookies.set(SESSION_COOKIE, '', {
-    path: '/',
-    expires: new Date(0),
-  });
-  res.cookies.set(USER_COOKIE, '', {
-    path: '/',
-    expires: new Date(0),
-  });
-  res.cookies.set('karier_auth', '', {
-    path: '/',
-    expires: new Date(0),
-  });
+  res.cookies.set(SESSION_COOKIE, '', { path: '/', expires: new Date(0) });
+  res.cookies.set(USER_COOKIE, '', { path: '/', expires: new Date(0) });
+  res.cookies.set(EMAIL_COOKIE, '', { path: '/', expires: new Date(0) });
+  res.cookies.set(ROLE_COOKIE, '', { path: '/', expires: new Date(0) });
+  res.cookies.set('karier_auth', '', { path: '/', expires: new Date(0) });
   return res;
 }

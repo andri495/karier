@@ -6,4 +6,6 @@ node_modules/
 backups/
 .vercel/
 database/pglite_db/
+database/admin_auth.json
+database/users.json
 
